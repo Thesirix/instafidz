@@ -38,7 +38,13 @@ Then you open Instagram and publish in the order you planned.
 
 ## Quick Start
 
-### run it locally on Windows
+### Option A: use the link
+
+https://thesirix.github.io/instafidz/
+
+the memory is on your browser
+
+### option B: run it locally on Windows
 
 ```bash
 git clone https://github.com/Thesirix/instafidz.git
