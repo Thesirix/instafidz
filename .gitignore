@@ -1,0 +1,22 @@
+# Sécurité : ne jamais publier de photos personnelles par erreur
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.avif
+*.bmp
+*.heic
+*.heif
+*.raw
+*.dng
+*.cr2
+*.nef
+*.arw
+
+# Seule exception : la capture d'écran du README
+!instafidz.png
+
+# Fichiers système Windows
+Thumbs.db
+desktop.ini

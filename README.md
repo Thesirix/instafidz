@@ -63,13 +63,13 @@ Double-click `index.html`. Photos can be dragged in normally. For folders, use t
 
 ### Your first feed in 5 steps
 
-| Step | Action                                                                                   | UI element                            |
-| ---- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| 1    | Import photos: drop files/folders, or use the buttons                                    | **Ajouter des photos** / **Parcourir** |
-| 2    | Reorder: drag a tile onto another tile                                                   | the grid                              |
-| 3    | Move far in one go: while dragging, hover the blue bar at the top or bottom of the screen | drag zones                            |
-| 4    | Build carousels: select photos **in the order you want them to appear**, then group      | **Sélectionner** → **Créer un carousel** |
-| 5    | Check a post full screen, reorder its carousel slides, ungroup or delete it              | click a tile                          |
+| Step | Action                                                                                    | UI element                               |
+| ---- | ----------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 1    | Import photos: drop files/folders, or use the buttons                                     | **Ajouter des photos** / **Parcourir**   |
+| 2    | Reorder: drag a tile onto another tile                                                    | the grid                                 |
+| 3    | Move far in one go: while dragging, hover the blue bar at the top or bottom of the screen | drag zones                               |
+| 4    | Build carousels: select photos **in the order you want them to appear**, then group       | **Sélectionner** → **Créer un carousel** |
+| 5    | Check a post full screen, reorder its carousel slides, ungroup or delete it               | click a tile                             |
 
 ### Publishing order
 
@@ -94,13 +94,18 @@ The feed is an ordered array of posts. A post with more than one photo is a caro
 
 ```js
 posts = [
-  { id: 'post-lx2k9f-a8b3c1', photoIds: ['p12'] },               // single photo
-  { id: 'post-lx2kaa-9d0e2f', photoIds: ['p3', 'p7', 'p8', 'p4'] } // carousel, slide order
+  { id: "post-lx2k9f-a8b3c1", photoIds: ["p12"] }, // single photo
+  { id: "post-lx2kaa-9d0e2f", photoIds: ["p3", "p7", "p8", "p4"] }, // carousel, slide order
 ];
 
 photoStore = {
-  p12: { id: 'p12', name: 'DSC08577.png', sig: 'DSC08577.png|4812331|1752157519000',
-         thumbUrl: 'blob:…', file: File /* only for photos imported this session */ }
+  p12: {
+    id: "p12",
+    name: "DSC08577.png",
+    sig: "DSC08577.png|4812331|1752157519000",
+    thumbUrl: "blob:…",
+    file: File /* only for photos imported this session */,
+  },
 };
 
 selectedIds = new Set(); // a Set keeps insertion order = the order you clicked
@@ -112,11 +117,11 @@ Array index = feed position. Moving a photo is a plain `splice` out and `splice`
 
 Everything is stored in the browser, in a database named `feedOrganizerDB` (version 2):
 
-| Object store | Key   | Content                                                    | Why                                     |
-| ------------ | ----- | ---------------------------------------------------------- | --------------------------------------- |
-| `photos`     | `id`  | `{ id, blob, name, sig }`, the **original file**, untouched | full-resolution preview                 |
-| `thumbs`     | `id`  | `{ id, blob, name, sig }`, a JPEG thumbnail                | fast grid rendering                     |
-| `meta`       | `key` | `{ key: 'posts', value: [{ id, photoIds }] }`              | feed order and carousel composition     |
+| Object store | Key   | Content                                                     | Why                                 |
+| ------------ | ----- | ----------------------------------------------------------- | ----------------------------------- |
+| `photos`     | `id`  | `{ id, blob, name, sig }`, the **original file**, untouched | full-resolution preview             |
+| `thumbs`     | `id`  | `{ id, blob, name, sig }`, a JPEG thumbnail                 | fast grid rendering                 |
+| `meta`       | `key` | `{ key: 'posts', value: [{ id, photoIds }] }`               | feed order and carousel composition |
 
 At startup, the app reads **only the keys** of `photos`, plus every thumbnail and the `meta` record. Originals are never loaded into memory until you open one full screen. Posts that reference a missing photo are dropped, and duplicated post IDs are regenerated.
 
@@ -128,18 +133,19 @@ Every write goes through a single wrapper that counts pending transactions:
 
 ```js
 pendingWrites++;
-const tx = db.transaction(storeName, 'readwrite');
+const tx = db.transaction(storeName, "readwrite");
 op(tx.objectStore(storeName));
 tx.oncomplete = () => finish();
-tx.onerror = tx.onabort = () => finish(tx.error || new Error('Transaction annulée'));
+tx.onerror = tx.onabort = () =>
+  finish(tx.error || new Error("Transaction annulée"));
 ```
 
-| State    | Shown when                                                         | Label                                   |
-| -------- | ------------------------------------------------------------------ | --------------------------------------- |
-| `saved`  | no pending write                                                   | *Travail sauvegardé*                    |
-| `saving` | a write has been pending for more than 300 ms (avoids flicker)     | *Sauvegarde en cours… ne fermez pas la page* |
-| `error`  | a transaction failed or aborted (typically: disk quota exceeded)   | *Erreur de sauvegarde*                  |
-| `off`    | IndexedDB is unavailable (private browsing) or the saved data could not be read | *Sauvegarde impossible ici*   |
+| State    | Shown when                                                                      | Label                                        |
+| -------- | ------------------------------------------------------------------------------- | -------------------------------------------- |
+| `saved`  | no pending write                                                                | _Travail sauvegardé_                         |
+| `saving` | a write has been pending for more than 300 ms (avoids flicker)                  | _Sauvegarde en cours… ne fermez pas la page_ |
+| `error`  | a transaction failed or aborted (typically: disk quota exceeded)                | _Erreur de sauvegarde_                       |
+| `off`    | IndexedDB is unavailable (private browsing) or the saved data could not be read | _Sauvegarde impossible ici_                  |
 
 - If you try to close the tab while `pendingWrites > 0`, a `beforeunload` confirmation appears.
 - If the existing save cannot be read, the app switches to `off` instead of writing. **It never overwrites a library it failed to load.**
@@ -153,15 +159,15 @@ original File ──▶ createImageBitmap ──▶ canvas (short side = 640 px)
 ```
 
 ```js
-const THUMB_SIZE = 640;       // short side of the thumbnail, in px
-const THUMB_CONCURRENCY = 3;  // thumbnails generated in parallel
+const THUMB_SIZE = 640; // short side of the thumbnail, in px
+const THUMB_CONCURRENCY = 3; // thumbnails generated in parallel
 
 const scale = Math.min(1, THUMB_SIZE / Math.min(bmp.width, bmp.height)); // never upscales
-canvas.toBlob(res, 'image/jpeg', 0.82);
+canvas.toBlob(res, "image/jpeg", 0.82);
 ```
 
 - Thumbnails are generated **once**, then reused on every visit.
-- A progress indicator (*Préparation des vignettes x/y*) is shown while the queue is running.
+- A progress indicator (_Préparation des vignettes x/y_) is shown while the queue is running.
 - Libraries created with the previous version (no `thumbs` store) get their thumbnails built at startup, in feed order.
 
 ### 4. Full-Screen Preview
@@ -169,11 +175,11 @@ canvas.toBlob(res, 'image/jpeg', 0.82);
 Opening a post shows its thumbnail **instantly** (slightly blurred), then swaps in the original once it is decoded:
 
 ```js
-lbImg.src = photo.thumbUrl;          // immediate, blurred preview
+lbImg.src = photo.thumbUrl; // immediate, blurred preview
 const loader = new Image();
 loader.src = URL.createObjectURL(blob);
-await loader.decode();               // decode off-screen, no jank
-if(token !== fullToken) return;      // user already moved to another photo
+await loader.decode(); // decode off-screen, no jank
+if (token !== fullToken) return; // user already moved to another photo
 lbImg.src = loader.src;
 ```
 
@@ -196,27 +202,28 @@ Reordering a 200-photo feed does not reload a single image.
 
 ### Sources
 
-| Source                   | API                                               | Sub-folders |
-| ------------------------ | ------------------------------------------------- | ----------- |
-| **Ajouter des photos**   | `<input type="file" accept="image/*" multiple>`    | n/a         |
-| **Parcourir** (Browse)   | `<input type="file" webkitdirectory>`              | ✅          |
-| Drop files               | `DataTransferItem.getAsFile()`                     | n/a         |
-| Drop folders             | `DataTransferItem.webkitGetAsEntry()` + recursion | ✅          |
+| Source                 | API                                               | Sub-folders |
+| ---------------------- | ------------------------------------------------- | ----------- |
+| **Ajouter des photos** | `<input type="file" accept="image/*" multiple>`   | n/a         |
+| **Parcourir** (Browse) | `<input type="file" webkitdirectory>`             | ✅          |
+| Drop files             | `DataTransferItem.getAsFile()`                    | n/a         |
+| Drop folders           | `DataTransferItem.webkitGetAsEntry()` + recursion | ✅          |
 
 ### Recursive folder reading
 
 `readEntries()` returns directory content **in batches** (Chromium caps each batch at 100 entries), so the reader loops until it gets an empty batch:
 
 ```js
-function readAllEntries(dirEntry){
+function readAllEntries(dirEntry) {
   const reader = dirEntry.createReader();
   const all = [];
   return new Promise((resolve, reject) => {
-    const next = () => reader.readEntries(batch => {
-      if(!batch.length) return resolve(all);
-      all.push(...batch);
-      next();
-    }, reject);
+    const next = () =>
+      reader.readEntries((batch) => {
+        if (!batch.length) return resolve(all);
+        all.push(...batch);
+        next();
+      }, reject);
     next();
   });
 }
@@ -228,15 +235,19 @@ All drop items are captured **synchronously** inside the `drop` event, because t
 
 ```js
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
-function isImageFile(f){ return f.type.startsWith('image/') || IMAGE_EXT.test(f.name); }
+function isImageFile(f) {
+  return f.type.startsWith("image/") || IMAGE_EXT.test(f.name);
+}
 
 // same name + same size + same last-modified date = same photo
-function fileSignature(f){ return `${f.name}|${f.size}|${f.lastModified}`; }
+function fileSignature(f) {
+  return `${f.name}|${f.size}|${f.lastModified}`;
+}
 ```
 
 - Non-image files (`.txt`, `.xmp`, `Thumbs.db`…) are ignored.
 - Files are sorted by full path with a **natural sort** (`localeCompare(…, { numeric: true })`), so `img2` comes before `img10` and sub-folders stay grouped.
-- A photo whose signature already exists, in the library **or** earlier in the same import, is skipped. The notification says how many: *142 photo(s) ajoutée(s) · 64 doublon(s) ignoré(s)*. Re-importing a folder after adding new pictures to it only adds the new ones.
+- A photo whose signature already exists, in the library **or** earlier in the same import, is skipped. The notification says how many: _142 photo(s) ajoutée(s) · 64 doublon(s) ignoré(s)_. Re-importing a folder after adding new pictures to it only adds the new ones.
 - New photos are inserted **at the top** of the feed, like new Instagram posts.
 
 ### The `file://` limitation
@@ -249,11 +260,11 @@ EncodingError: A URI supplied to the API was malformed…
 
 Dropped **files** are not affected (they are read with `getAsFile()`). InstaFidz detects the failure and tells you what to do instead. Three ways to get folder drops:
 
-| Method                        | How it works                                                              |
-| ----------------------------- | ------------------------------------------------------------------------- |
-| GitHub Pages (or any web server) | the page has a real `https://` origin, nothing is blocked               |
-| `Lancer-organisateur.bat`     | launches Chromium with `--allow-file-access-from-files`                   |
-| **Parcourir** button          | `webkitdirectory` input, works everywhere                                 |
+| Method                           | How it works                                              |
+| -------------------------------- | --------------------------------------------------------- |
+| GitHub Pages (or any web server) | the page has a real `https://` origin, nothing is blocked |
+| `Lancer-organisateur.bat`        | launches Chromium with `--allow-file-access-from-files`   |
+| **Parcourir** button             | `webkitdirectory` input, works everywhere                 |
 
 ---
 
@@ -265,16 +276,18 @@ Native HTML5 drag & drop. Dropping a tile on another tile moves it to that posit
 
 **Jump zones.** Auto-scrolling a long feed while holding a photo is slow. While a drag is in progress, two full-width drop zones appear at the top and bottom of the viewport:
 
-| Interaction                  | Result                                              |
-| ---------------------------- | --------------------------------------------------- |
-| hover the **bottom** zone    | page jumps instantly to the end of the feed         |
-| hover the **top** zone       | page jumps instantly to the start of the feed       |
-| drop on a zone               | photo is placed at the very last / very first position |
+| Interaction               | Result                                                 |
+| ------------------------- | ------------------------------------------------------ |
+| hover the **bottom** zone | page jumps instantly to the end of the feed            |
+| hover the **top** zone    | page jumps instantly to the start of the feed          |
+| drop on a zone            | photo is placed at the very last / very first position |
 
 The zones are shown one frame after `dragstart`, because mutating the DOM inside `dragstart` can cancel the drag in Chromium:
 
 ```js
-requestAnimationFrame(() => { if(draggedPostId !== null) setDragZones(true); });
+requestAnimationFrame(() => {
+  if (draggedPostId !== null) setDragZones(true);
+});
 ```
 
 Two floating buttons (bottom right) also scroll to the top or bottom of the page outside of a drag.
@@ -288,35 +301,35 @@ Two floating buttons (bottom right) also scroll to the top or bottom of the page
 
 ### Full-screen view
 
-| Action                    | How                                                     |
-| ------------------------- | ------------------------------------------------------- |
-| Next / previous slide     | arrows on screen, or `←` `→`                            |
-| Reorder carousel slides   | drag the thumbnails in the bottom strip                 |
-| Ungroup a carousel        | **Dissocier**: every slide becomes a single post, in place |
-| Delete the post           | **Supprimer**                                           |
-| Close                     | ✕ or `Esc`                                              |
+| Action                  | How                                                        |
+| ----------------------- | ---------------------------------------------------------- |
+| Next / previous slide   | arrows on screen, or `←` `→`                               |
+| Reorder carousel slides | drag the thumbnails in the bottom strip                    |
+| Ungroup a carousel      | **Dissocier**: every slide becomes a single post, in place |
+| Delete the post         | **Supprimer**                                              |
+| Close                   | ✕ or `Esc`                                                 |
 
 ### Keyboard shortcuts
 
-| Shortcut         | Context          | Action                               |
-| ---------------- | ---------------- | ------------------------------------ |
-| `Ctrl+A` / `⌘+A` | grid             | enter selection mode and select all  |
-| `←` / `→`        | full-screen view | previous / next slide                |
-| `Esc`            | full-screen view | close                                |
+| Shortcut         | Context          | Action                              |
+| ---------------- | ---------------- | ----------------------------------- |
+| `Ctrl+A` / `⌘+A` | grid             | enter selection mode and select all |
+| `←` / `→`        | full-screen view | previous / next slide               |
+| `Esc`            | full-screen view | close                               |
 
 ---
 
 ## Visual Design
 
-| Element             | Style                                                                     |
-| ------------------- | ------------------------------------------------------------------------- |
+| Element             | Style                                                                        |
+| ------------------- | ---------------------------------------------------------------------------- |
 | Grid                | 3 columns, 3 px gap, square tiles (`aspect-ratio: 1/1`, `object-fit: cover`) |
-| Feed position badge | top-left, dark translucent pill                                           |
-| Carousel            | 4 px green border (`#16A34A`) + large badge with the slide count          |
-| Selected            | 4 px blue border (`#0095F6`), blue tint, numbered check in click order    |
-| Drop target         | 4 px dashed blue border                                                   |
-| Palette             | Instagram-like light theme, automatic dark theme via `prefers-color-scheme` |
-| Layout              | max width 975 px (Instagram profile width), responsive below 600 px       |
+| Feed position badge | top-left, dark translucent pill                                              |
+| Carousel            | 4 px green border (`#16A34A`) + large badge with the slide count             |
+| Selected            | 4 px blue border (`#0095F6`), blue tint, numbered check in click order       |
+| Drop target         | 4 px dashed blue border                                                      |
+| Palette             | Instagram-like light theme, automatic dark theme via `prefers-color-scheme`  |
+| Layout              | max width 975 px (Instagram profile width), responsive below 600 px          |
 
 ---
 
@@ -346,12 +359,12 @@ start "" "%BROWSER%" --user-data-dir="%PROFILE%" --allow-file-access-from-files 
 
 4. prints a clear message and pauses if no browser or no `index.html` is found.
 
-| Flag                             | Purpose                                                                    |
-| -------------------------------- | -------------------------------------------------------------------------- |
-| `--user-data-dir`                | dedicated profile = separate browser process, so it works **even if Chrome is already running** |
-| `--allow-file-access-from-files` | lets a `file://` page read dropped folders                                  |
-| `--app`                          | app-style window, no tabs or address bar                                    |
-| `--no-first-run` / `--no-default-browser-check` | no Chrome welcome screens                                   |
+| Flag                                            | Purpose                                                                                         |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--user-data-dir`                               | dedicated profile = separate browser process, so it works **even if Chrome is already running** |
+| `--allow-file-access-from-files`                | lets a `file://` page read dropped folders                                                      |
+| `--app`                                         | app-style window, no tabs or address bar                                                        |
+| `--no-first-run` / `--no-default-browser-check` | no Chrome welcome screens                                                                       |
 
 > **Security note:** in that window, any local HTML page can read other local files. That is fine for InstaFidz, but do not use this window to open HTML files you downloaded and do not trust.
 
@@ -391,16 +404,16 @@ All settings are plain constants or CSS variables inside `index.html`.
 Instagram now crops profile grid thumbnails to a **3:4** portrait ratio. To preview that instead of squares:
 
 ```css
-.tile{
-  aspect-ratio: 3/4;   /* default: 1/1 */
+.tile {
+  aspect-ratio: 3/4; /* default: 1/1 */
 }
 ```
 
 ### Thumbnail quality and speed
 
 ```js
-const THUMB_SIZE = 640;       // raise for sharper tiles on large screens, lower to save space
-const THUMB_CONCURRENCY = 3;  // raise on a fast machine, lower if the page stutters during import
+const THUMB_SIZE = 640; // raise for sharper tiles on large screens, lower to save space
+const THUMB_CONCURRENCY = 3; // raise on a fast machine, lower if the page stutters during import
 ```
 
 Existing thumbnails are kept. Clear the site data to regenerate them with new settings.
@@ -408,10 +421,10 @@ Existing thumbnails are kept. Clear the site data to regenerate them with new se
 ### Colors
 
 ```css
-:root{
-  --ig-accent: #0095F6;  /* selection, buttons, drop zones */
-  --ig-danger: #ED4956;  /* delete actions */
-  --carousel:  #16A34A;  /* carousel border and badge */
+:root {
+  --ig-accent: #0095f6; /* selection, buttons, drop zones */
+  --ig-danger: #ed4956; /* delete actions */
+  --carousel: #16a34a; /* carousel border and badge */
 }
 ```
 
@@ -428,7 +441,9 @@ The browser must also be able to **decode** the format. HEIC and camera RAW file
 To allow the same photo more than once, make the signature unique per file:
 
 ```js
-function fileSignature(f){ return `${f.name}|${f.size}|${f.lastModified}|${Math.random()}`; }
+function fileSignature(f) {
+  return `${f.name}|${f.size}|${f.lastModified}|${Math.random()}`;
+}
 ```
 
 ---
@@ -454,4 +469,3 @@ function fileSignature(f){ return `${f.name}|${f.size}|${f.lastModified}|${Math.
 ## License
 
 MIT. Do whatever you want, a star is always appreciated ⭐
-# instafidz

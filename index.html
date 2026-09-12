@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organisateur de feed</title>
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" rel="stylesheet">
+<style>
+  :root{
+    --ig-bg:#FAFAFA;
+    --ig-surface:#FFFFFF;
+    --ig-text:#262626;
+    --ig-text-soft:#8E8E8E;
+    --ig-border:#DBDBDB;
+    --ig-accent:#0095F6;
+    --ig-accent-dark:#1877F2;
+    --ig-danger:#ED4956;
+    --carousel:#16A34A;
+    --placeholder:#EFEFEF;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ig-bg:#000000;
+      --ig-surface:#121212;
+      --ig-text:#F5F5F5;
+      --ig-text-soft:#A8A8A8;
+      --ig-border:#363636;
+      --placeholder:#1E1E1E;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--ig-bg);
+    color:var(--ig-text);
+  }
+  body.lightbox-open{overflow:hidden;}
+  [hidden]{display:none!important;}
+  .app{max-width:975px;margin:0 auto;padding:0 0 120px;}
+  header.topbar{
+    border-bottom:1px solid var(--ig-border);
+    background:var(--ig-surface);
+    position:sticky;top:0;z-index:20;
+  }
+  .topbar-inner{
+    max-width:975px;margin:0 auto;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:14px 20px;
+  }
+  .logo{
+    font-family:'Brush Script MT', cursive;
+    font-size:26px;font-weight:600;letter-spacing:.5px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .logo i{font-size:22px;color:var(--ig-text);}
+  .topbar-actions{display:flex;gap:8px;align-items:center;}
+  button.pill{
+    border:1px solid var(--ig-border);
+    background:var(--ig-surface);
+    color:var(--ig-text);
+    padding:8px 16px;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    display:flex;align-items:center;gap:6px;
+    white-space:nowrap;
+  }
+  button.pill:hover{background:rgba(127,127,127,.08);}
+  button.pill.primary{background:var(--ig-accent);border-color:var(--ig-accent);color:#fff;}
+  button.pill.primary:hover{background:var(--ig-accent-dark);}
+  button.pill.danger{color:var(--ig-danger);border-color:var(--ig-danger);}
+  button.pill:disabled{opacity:.4;cursor:not-allowed;}
+  #fileInput,#folderInput{display:none;}
+
+  .profile-strip{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:24px 20px 8px;
+  }
+  .profile-strip .count{font-size:14px;color:var(--ig-text-soft);}
+  .thumb-progress{font-size:13px;color:var(--ig-accent);display:flex;align-items:center;gap:6px;}
+  .thumb-progress i{animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .save-status{font-size:13px;color:var(--ig-text-soft);display:flex;align-items:center;gap:5px;margin-left:auto;}
+  .save-status.saving{color:var(--ig-accent);}
+  .save-status.saving i{animation:spin 1s linear infinite;}
+  .save-status.error{color:var(--ig-danger);font-weight:600;}
+  .hint{font-size:13px;color:var(--ig-text-soft);padding:0 20px 16px;line-height:1.5;margin:0;}
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:3px;
+    padding:0 3px;
+  }
+  .tile{
+    position:relative;
+    aspect-ratio:1/1;
+    background:var(--placeholder);
+    overflow:hidden;
+    cursor:grab;
+    user-select:none;
+  }
+  .tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+  .tile.loading img{visibility:hidden;}
+  .tile.loading::before{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent,rgba(127,127,127,.18),transparent);
+    animation:shimmer 1.2s infinite;
+  }
+  @keyframes shimmer{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
+  .tile.dragging{opacity:.3;}
+  .tile::after{content:'';position:absolute;inset:0;pointer-events:none;border:0 solid transparent;}
+  .tile.is-carousel::after{border:4px solid var(--carousel);}
+  .tile.selected::after{border:4px solid var(--ig-accent);background:rgba(0,149,246,.18);}
+  .tile.drop-target::after{border:4px dashed var(--ig-accent);background:rgba(0,149,246,.12);}
+
+  .tile .order-badge{
+    position:absolute;top:8px;left:8px;z-index:1;
+    background:rgba(0,0,0,.55);color:#fff;
+    font-size:11px;font-weight:600;
+    padding:2px 7px;border-radius:6px;
+  }
+  .tile .carousel-badge{
+    position:absolute;top:8px;right:8px;z-index:1;
+    display:none;align-items:center;gap:5px;
+    background:var(--carousel);color:#fff;
+    border:3px solid #fff;border-radius:999px;
+    padding:7px 16px 7px 11px;
+    font-size:24px;font-weight:800;line-height:1;
+    box-shadow:0 2px 8px rgba(0,0,0,.5);
+  }
+  .tile .carousel-badge i{font-size:28px;}
+  .tile.is-carousel .carousel-badge{display:flex;}
+  .tile .select-check{
+    position:absolute;bottom:8px;right:8px;z-index:1;
+    width:30px;height:30px;border-radius:50%;
+    border:2px solid #fff;
+    background:rgba(0,0,0,.3);
+    color:#fff;font-size:14px;font-weight:800;
+    display:none;align-items:center;justify-content:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.4);
+  }
+  .grid.select-mode .tile .select-check{display:flex;}
+  .tile.selected .select-check{background:var(--ig-accent);border-color:#fff;}
+
+  .grid.file-drag-over,
+  .empty-state.file-drag-over{
+    outline:2px dashed var(--ig-accent);
+    outline-offset:-2px;
+    background:rgba(0,149,246,.06);
+  }
+  .empty-state{text-align:center;padding:80px 20px;color:var(--ig-text-soft);}
+  .empty-state i{font-size:48px;display:block;margin-bottom:12px;}
+  .empty-state p{margin:4px 0;font-size:14px;}
+
+  /* Barre de sélection, toujours accessible en bas de l'écran */
+  .select-bar{
+    position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+    z-index:50;
+    width:min(640px, calc(100% - 32px));
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    background:var(--ig-surface);
+    border:1px solid var(--ig-border);
+    border-radius:14px;
+    padding:10px 12px;
+    box-shadow:0 8px 30px rgba(0,0,0,.25);
+  }
+  .select-bar .sel-count{font-size:14px;font-weight:600;margin-right:auto;padding-left:4px;}
+
+  .jumps{
+    position:fixed;right:16px;bottom:16px;z-index:40;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  body.select-mode .jumps{bottom:96px;}
+  .jumps button{
+    width:42px;height:42px;border-radius:50%;
+    border:1px solid var(--ig-border);background:var(--ig-surface);color:var(--ig-text);
+    font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,.2);
+  }
+  body.dragging-post .jumps{display:none;}
+
+  /* Zones affichées pendant qu'on déplace une photo : survol = saut, lâcher = placement */
+  .drag-zone{
+    position:fixed;left:0;right:0;z-index:60;
+    height:72px;padding:0 16px;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    background:rgba(0,149,246,.9);color:#fff;
+    font-size:15px;text-align:center;line-height:1.3;
+    box-shadow:0 0 24px rgba(0,0,0,.3);
+  }
+  .drag-zone *{pointer-events:none;}
+  .drag-zone.top{top:0;}
+  .drag-zone.bottom{bottom:0;}
+  .drag-zone i{font-size:28px;}
+  .drag-zone.over{background:var(--ig-accent-dark);outline:3px dashed #fff;outline-offset:-8px;}
+
+  /* Vue plein écran */
+  .lightbox{
+    position:fixed;inset:0;z-index:100;
+    background:#000;color:#fff;
+    display:flex;flex-direction:column;
+  }
+  .lb-top{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:10px 16px;
+  }
+  .lb-title{font-size:14px;font-weight:600;margin-right:auto;display:flex;align-items:center;gap:8px;}
+  .lb-title .tag{background:var(--carousel);padding:3px 10px;border-radius:999px;font-size:13px;}
+  .lightbox button.pill{background:transparent;color:#fff;border-color:rgba(255,255,255,.35);}
+  .lightbox button.pill:hover{background:rgba(255,255,255,.1);}
+  .lightbox button.pill.danger{color:#ff6b76;border-color:#ff6b76;}
+  .lb-close{background:none;border:none;color:#fff;font-size:28px;cursor:pointer;padding:4px 6px;line-height:1;}
+  .lb-stage{position:relative;flex:1;min-height:0;}
+  .lb-stage img{width:100%;height:100%;object-fit:contain;display:block;}
+  .lb-stage img.is-preview{filter:blur(2px);}
+  .nav-arrow{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:48px;height:48px;border-radius:50%;
+    background:rgba(255,255,255,.9);border:none;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:#262626;font-size:24px;
+  }
+  .nav-arrow.left{left:16px;}
+  .nav-arrow.right{right:16px;}
+  .lb-counter{
+    position:absolute;top:12px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.6);padding:4px 12px;border-radius:999px;font-size:13px;font-weight:600;
+  }
+  .lb-strip-wrap{padding:10px 16px 14px;}
+  .lb-strip-wrap p{font-size:12px;color:rgba(255,255,255,.6);margin:0 0 8px;text-transform:uppercase;letter-spacing:.4px;}
+  .lb-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+  .lb-strip .thumb{
+    position:relative;flex-shrink:0;
+    width:72px;height:72px;border-radius:6px;overflow:hidden;
+    border:3px solid transparent;cursor:grab;background:#222;
+  }
+  .lb-strip .thumb img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+  .lb-strip .thumb span{
+    position:absolute;top:3px;left:3px;background:rgba(0,0,0,.65);
+    font-size:11px;font-weight:700;padding:1px 5px;border-radius:4px;
+  }
+  .lb-strip .thumb.current{border-color:var(--ig-accent);}
+  .lb-strip .thumb.dragging{opacity:.3;}
+  .lb-strip .thumb.drop-target{border-style:dashed;border-color:#fff;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ig-text);color:var(--ig-bg);
+    padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;
+    z-index:200;opacity:0;transition:opacity .2s;pointer-events:none;
+    max-width:calc(100% - 32px);text-align:center;
+  }
+  body.select-mode .toast{bottom:96px;}
+  .toast.show{opacity:1;}
+
+  @media (max-width:600px){
+    .topbar-inner{padding:10px 12px;}
+    .logo{font-size:20px;}
+    .topbar-actions button.pill span{display:none;}
+    .tile .carousel-badge{font-size:16px;padding:4px 10px 4px 7px;border-width:2px;}
+    .tile .carousel-badge i{font-size:19px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo"><i class="ti ti-brand-instagram"></i>Organisateur</div>
+      <div class="topbar-actions">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <input type="file" id="folderInput" webkitdirectory multiple>
+        <button class="pill" id="btnFolder" title="Choisir un dossier (sous-dossiers compris)"><i class="ti ti-folder-open"></i><span>Parcourir</span></button>
+        <button class="pill" id="btnSelect"><i class="ti ti-checks"></i><span>Sélectionner</span></button>
+        <button class="pill primary" id="btnUpload"><i class="ti ti-upload"></i><span>Ajouter des photos</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="profile-strip">
+    <span class="count" id="countLabel">0 publication</span>
+    <span class="thumb-progress" id="thumbProgress" hidden></span>
+    <span class="save-status" id="saveStatus"></span>
+  </div>
+  <p class="hint">Glissez-déposez les vignettes pour changer l'ordre du feed — pendant le glisser, amenez la photo sur la barre bleue en haut ou en bas de l'écran pour sauter directement tout en haut ou tout en bas. Cliquez sur une photo pour l'ouvrir en plein écran (← → pour naviguer, Échap pour fermer). En mode sélection, les photos du carousel suivent l'ordre dans lequel vous les sélectionnez (1, 2, 3…) ; Ctrl+A sélectionne tout. Une photo identique déjà présente (même nom, taille et date) n'est pas ajoutée deux fois.</p>
+
+  <div class="empty-state" id="emptyState" hidden>
+    <i class="ti ti-photo-plus"></i>
+    <p><strong>Aucune photo pour l'instant</strong></p>
+    <p>Ajoutez vos photos traitées, ou glissez-déposez-les ici depuis votre bureau.</p>
+    <p>Pour un dossier entier (sous-dossiers compris) : glissez-le ici ou utilisez « Parcourir ».</p>
+    <p>Vos photos restent dans votre navigateur : rien n'est envoyé en ligne.</p>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="select-bar" id="selectBar" hidden>
+  <span class="sel-count" id="selCount">0 sélectionnée</span>
+  <button class="pill" id="btnSelectAll" title="Tout sélectionner (Ctrl+A)"><i class="ti ti-select-all"></i><span>Tout sélectionner</span></button>
+  <button class="pill" id="btnCancelSel"><span>Annuler</span></button>
+  <button class="pill danger" id="btnDeleteSel" disabled><i class="ti ti-trash"></i><span>Supprimer</span></button>
+  <button class="pill primary" id="btnGroup" disabled><i class="ti ti-stack-2"></i><span>Créer un carousel</span></button>
+</div>
+
+<div class="drag-zone top" id="dragZoneTop" data-edge="top" hidden>
+  <i class="ti ti-arrow-bar-to-up"></i><span><b>Tout en haut</b> · lâchez ici pour la mettre en 1<sup>re</sup> position</span>
+</div>
+<div class="drag-zone bottom" id="dragZoneBottom" data-edge="bottom" hidden>
+  <i class="ti ti-arrow-bar-to-down"></i><span><b>Tout en bas</b> · lâchez ici pour la mettre en dernier</span>
+</div>
+
+<div class="jumps">
+  <button id="btnTop" title="Aller en haut"><i class="ti ti-arrow-bar-to-up"></i></button>
+  <button id="btnBottom" title="Aller en bas"><i class="ti ti-arrow-bar-to-down"></i></button>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <div class="lb-top">
+    <div class="lb-title" id="lbTitle"></div>
+    <button class="pill" id="lbUngroup"><i class="ti ti-layers-subtract"></i><span>Dissocier</span></button>
+    <button class="pill danger" id="lbDelete"><i class="ti ti-trash"></i><span>Supprimer</span></button>
+    <button class="lb-close" id="lbClose" aria-label="Fermer"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="lb-stage">
+    <img id="lbImg" alt="">
+    <button class="nav-arrow left" id="lbPrev" aria-label="Photo précédente"><i class="ti ti-chevron-left"></i></button>
+    <button class="nav-arrow right" id="lbNext" aria-label="Photo suivante"><i class="ti ti-chevron-right"></i></button>
+    <div class="lb-counter" id="lbCounter"></div>
+  </div>
+  <div class="lb-strip-wrap" id="lbStripWrap">
+    <p>Ordre dans le carousel — glissez pour réordonner</p>
+    <div class="lb-strip" id="lbStrip"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let posts = [];
+const photoStore = {};           // id -> { id, name, thumbUrl, file? }
+let selectMode = false;
+const selectedIds = new Set();   // un Set garde l'ordre d'insertion = ordre de sélection
+let draggedPostId = null;
+let modalPost = null;
+let modalIndex = 0;
+let modalDragIndex = null;
+let uid = 0;
+let db = null;
+const tiles = new Map();         // post.id -> élément DOM, réutilisé d'un rendu à l'autre
+
+const DB_NAME = 'feedOrganizerDB';
+const DB_VERSION = 2;
+const THUMB_SIZE = 640;          // petit côté de la vignette, en pixels
+const THUMB_CONCURRENCY = 3;
+
+function newPostId(){
+  return 'post-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+/* ---------- IndexedDB ---------- */
+function openDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const idb = e.target.result;
+      if(!idb.objectStoreNames.contains('photos')) idb.createObjectStore('photos', { keyPath: 'id' });
+      if(!idb.objectStoreNames.contains('meta')) idb.createObjectStore('meta', { keyPath: 'key' });
+      if(!idb.objectStoreNames.contains('thumbs')) idb.createObjectStore('thumbs', { keyPath: 'id' });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+/* Chaque écriture est comptée : on sait s'il reste des choses à sauvegarder avant de fermer */
+let pendingWrites = 0;
+let saveFailed = false;
+function dbWrite(storeName, op){
+  return new Promise((resolve, reject) => {
+    if(!db) return resolve();
+    let settled = false;
+    const finish = (err) => {
+      if(settled) return;
+      settled = true;
+      pendingWrites--;
+      if(err){ saveFailed = true; console.error('Échec de sauvegarde', err); }
+      updateSaveStatus();
+      err ? reject(err) : resolve();
+    };
+    pendingWrites++;
+    updateSaveStatus();
+    try{
+      const tx = db.transaction(storeName, 'readwrite');
+      op(tx.objectStore(storeName));
+      tx.oncomplete = () => finish();
+      tx.onerror = tx.onabort = () => finish(tx.error || new Error('Transaction annulée'));
+    }catch(err){ finish(err); }
+  });
+}
+const dbPut = (store, value) => dbWrite(store, s => s.put(value));
+const dbDelete = (store, key) => dbWrite(store, s => s.delete(key));
+
+const SAVE_STATES = {
+  saved:  ['',       'ti-cloud-check',     'Travail sauvegardé'],
+  saving: ['saving', 'ti-loader-2',        'Sauvegarde en cours… ne fermez pas la page'],
+  error:  ['error',  'ti-alert-triangle',  'Erreur de sauvegarde (espace disque plein ?)'],
+  off:    ['error',  'ti-alert-triangle',  'Sauvegarde impossible ici (navigation privée ?) — le travail sera perdu à la fermeture'],
+};
+function setSaveStatus(state){
+  const [cls, icon, label] = SAVE_STATES[state];
+  const el = document.getElementById('saveStatus');
+  el.className = 'save-status ' + cls;
+  el.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
+}
+function updateSaveStatus(){
+  if(db && !saveFailed && pendingWrites){
+    // « en cours » seulement si l'écriture dure, pour ne pas clignoter à chaque déplacement
+    if(!updateSaveStatus.timer) updateSaveStatus.timer = setTimeout(() => {
+      updateSaveStatus.timer = null;
+      if(pendingWrites) setSaveStatus('saving');
+    }, 300);
+    return;
+  }
+  clearTimeout(updateSaveStatus.timer);
+  updateSaveStatus.timer = null;
+  setSaveStatus(!db ? 'off' : saveFailed ? 'error' : 'saved');
+}
+window.addEventListener('beforeunload', (e) => {
+  if(pendingWrites > 0){ e.preventDefault(); e.returnValue = ''; }
+});
+function dbRequest(storeName, method, arg){
+  return new Promise((resolve, reject) => {
+    if(!db) return resolve(undefined);
+    const tx = db.transaction(storeName, 'readonly');
+    const req = arg === undefined ? tx.objectStore(storeName)[method]() : tx.objectStore(storeName)[method](arg);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+const dbGet = (store, key) => dbRequest(store, 'get', key);
+const dbGetAll = (store) => dbRequest(store, 'getAll');
+const dbGetAllKeys = (store) => dbRequest(store, 'getAllKeys');
+
+function persistPosts(){
+  return dbPut('meta', { key: 'posts', value: posts.map(p => ({ id: p.id, photoIds: p.photoIds })) }).catch(() => {});
+}
+function persistPhoto(id, file, sig){
+  return dbPut('photos', { id, blob: file, name: file.name, sig }).catch(() => {});
+}
+function removePhotos(ids){
+  ids.forEach(id => {
+    const photo = photoStore[id];
+    if(photo && photo.thumbUrl) URL.revokeObjectURL(photo.thumbUrl);
+    delete photoStore[id];
+  });
+  return Promise.all(ids.flatMap(id => [dbDelete('photos', id), dbDelete('thumbs', id)])).catch(() => {});
+}
+
+/* ---------- Vignettes : on n'affiche jamais les originaux 4K dans la grille ---------- */
+const thumbQueue = [];
+let thumbWorkers = 0;
+let thumbTotal = 0;
+let thumbDone = 0;
+
+function queueThumb(id){
+  thumbQueue.push(id);
+  thumbTotal++;
+  pumpThumbs();
+}
+function pumpThumbs(){
+  while(thumbWorkers < THUMB_CONCURRENCY && thumbQueue.length){
+    const id = thumbQueue.shift();
+    thumbWorkers++;
+    buildThumb(id)
+      .catch(err => console.warn('Vignette impossible pour', id, err))
+      .finally(() => { thumbWorkers--; thumbDone++; pumpThumbs(); });
+  }
+  updateThumbProgress();
+}
+function updateThumbProgress(){
+  const el = document.getElementById('thumbProgress');
+  if(thumbWorkers === 0 && thumbQueue.length === 0){
+    thumbTotal = 0; thumbDone = 0;
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `<i class="ti ti-loader-2"></i> Préparation des vignettes ${thumbDone}/${thumbTotal}`;
+}
+async function buildThumb(id){
+  const photo = photoStore[id];
+  if(!photo) return;
+  let blob = photo.file;
+  if(!blob){
+    const rec = await dbGet('photos', id);
+    if(!rec) return;
+    blob = rec.blob;
+    if(!photo.name) photo.name = rec.name;
+  }
+  const bmp = await createImageBitmap(blob);
+  const scale = Math.min(1, THUMB_SIZE / Math.min(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  const thumbBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.82));
+  if(!thumbBlob || !photoStore[id]) return; // supprimée entre-temps
+  photo.thumbUrl = URL.createObjectURL(thumbBlob);
+  dbPut('thumbs', { id, blob: thumbBlob, name: photo.name, sig: photo.sig }).catch(() => {});
+  scheduleRender();
+  const stripImg = document.querySelector(`#lbStrip .thumb[data-photo-id="${id}"] img`);
+  if(stripImg) stripImg.src = photo.thumbUrl;
+}
+
+/* ---------- Démarrage ---------- */
+async function init(){
+  try{
+    db = await openDB();
+    // demande au navigateur de ne jamais effacer ces données pour libérer de la place
+    if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    const [photoIds, thumbs, metaPosts] = await Promise.all([dbGetAllKeys('photos'), dbGetAll('thumbs'), dbGet('meta', 'posts')]);
+    const thumbMap = new Map(thumbs.map(t => [t.id, t]));
+    let maxUid = -1;
+    photoIds.forEach(id => {
+      const t = thumbMap.get(id);
+      photoStore[id] = { id, name: t ? t.name : '', sig: t ? t.sig : undefined, thumbUrl: t ? URL.createObjectURL(t.blob) : null };
+      const n = parseInt(String(id).slice(1), 10);
+      if(!isNaN(n) && n > maxUid) maxUid = n;
+    });
+    uid = maxUid + 1;
+    if(metaPosts && Array.isArray(metaPosts.value)){
+      const seen = new Set();
+      posts = metaPosts.value
+        .filter(p => p.photoIds.length && p.photoIds.every(pid => photoStore[pid]))
+        .map(p => {
+          const id = seen.has(p.id) ? newPostId() : p.id;
+          seen.add(id);
+          return { id, photoIds: p.photoIds };
+        });
+    }
+    // vignettes manquantes (anciennes photos) : générées une seule fois, dans l'ordre du feed
+    posts.flatMap(p => p.photoIds).forEach(pid => { if(!photoStore[pid].thumbUrl) queueThumb(pid); });
+  }catch(err){
+    console.error('Stockage local indisponible, le travail ne sera pas sauvegardé.', err);
+    db = null; // surtout ne pas écraser une sauvegarde qu'on n'a pas réussi à relire
+  }
+  updateSaveStatus();
+  render();
+}
+
+const grid = document.getElementById('grid');
+const emptyState = document.getElementById('emptyState');
+const fileInput = document.getElementById('fileInput');
+const btnSelect = document.getElementById('btnSelect');
+const btnGroup = document.getElementById('btnGroup');
+const btnDeleteSel = document.getElementById('btnDeleteSel');
+const selectBar = document.getElementById('selectBar');
+const selCount = document.getElementById('selCount');
+const countLabel = document.getElementById('countLabel');
+
+document.getElementById('btnUpload').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => { addFiles(e.target.files); fileInput.value = ''; });
+const folderInput = document.getElementById('folderInput');
+document.getElementById('btnFolder').addEventListener('click', () => folderInput.click());
+folderInput.addEventListener('change', (e) => {
+  addFiles(sortByPath(Array.from(e.target.files).map(file => ({ file, path: file.webkitRelativePath || file.name }))));
+  folderInput.value = '';
+});
+btnSelect.addEventListener('click', () => setSelectMode(!selectMode));
+document.getElementById('btnCancelSel').addEventListener('click', () => setSelectMode(false));
+const btnSelectAll = document.getElementById('btnSelectAll');
+btnSelectAll.addEventListener('click', () => {
+  const allSelected = posts.length > 0 && selectedIds.size === posts.length;
+  selectedIds.clear();
+  if(!allSelected) posts.forEach(p => selectedIds.add(p.id));
+  render();
+});
+// Ctrl+A : passe en mode sélection et sélectionne tout le feed
+document.addEventListener('keydown', (e) => {
+  if(modalPost || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'a') return;
+  if(e.target.closest('input, textarea') || !posts.length) return;
+  e.preventDefault();
+  if(!selectMode) setSelectMode(true);
+  posts.forEach(p => selectedIds.add(p.id));
+  render();
+});
+btnGroup.addEventListener('click', groupSelected);
+btnDeleteSel.addEventListener('click', deleteSelected);
+document.getElementById('btnTop').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+document.getElementById('btnBottom').addEventListener('click', () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }));
+
+function showToast(msg, duration = 1800){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+function isImageFile(f){ return f.type.startsWith('image/') || IMAGE_EXT.test(f.name); }
+// même nom + même taille + même date de modification = même photo
+function fileSignature(f){ return `${f.name}|${f.size}|${f.lastModified}`; }
+
+function addFiles(fileList, note = ''){
+  const known = new Set(Object.values(photoStore).map(p => p.sig).filter(Boolean));
+  const newPosts = [];
+  let skipped = 0;
+  Array.from(fileList).forEach(file => {
+    if(!isImageFile(file)) return;
+    const sig = fileSignature(file);
+    if(known.has(sig)){ skipped++; return; }
+    known.add(sig);
+    const id = 'p' + (uid++);
+    photoStore[id] = { id, name: file.name, sig, thumbUrl: null, file };
+    persistPhoto(id, file, sig);
+    queueThumb(id);
+    newPosts.push({ id: newPostId(), photoIds: [id] });
+  });
+  if(newPosts.length){
+    posts = [...newPosts, ...posts];
+    persistPosts();
+    render();
+  }
+  const summary = !newPosts.length && !skipped
+    ? (note ? '' : 'Aucune image trouvée')
+    : newPosts.length + ' photo(s) ajoutée(s)' + (skipped ? ` · ${skipped} doublon(s) ignoré(s) (photo identique déjà présente)` : '');
+  showToast([summary, note].filter(Boolean).join(' — '), note ? 7000 : skipped ? 5000 : 1800);
+}
+
+/* ---------- Lecture de dossiers (sous-dossiers compris) ---------- */
+function sortByPath(items){
+  return items
+    .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }))
+    .map(it => it.file);
+}
+function readAllEntries(dirEntry){
+  // readEntries renvoie les fichiers par paquets : on boucle jusqu'à un paquet vide
+  const reader = dirEntry.createReader();
+  const all = [];
+  return new Promise((resolve, reject) => {
+    const next = () => reader.readEntries(batch => {
+      if(!batch.length) return resolve(all);
+      all.push(...batch);
+      next();
+    }, reject);
+    next();
+  });
+}
+async function collectEntryFiles(entry, out){
+  if(entry.isFile){
+    const file = await new Promise((res, rej) => entry.file(res, rej)).catch(() => null);
+    if(file) out.push({ file, path: entry.fullPath });
+  } else if(entry.isDirectory){
+    const children = await readAllEntries(entry).catch(() => []);
+    for(const child of children) await collectEntryFiles(child, out);
+  }
+}
+const FOLDER_BLOCKED_MSG = 'Chrome bloque le dépôt de dossiers quand la page est ouverte depuis le disque : utilisez « Parcourir », ou ouvrez l\'organisateur avec Lancer-organisateur.bat';
+async function filesFromDataTransfer(dt){
+  // tout récupérer tout de suite : le contenu du dépôt n'est plus lisible après l'événement
+  const dropped = dt.items
+    ? Array.from(dt.items).filter(it => it.kind === 'file')
+        .map(it => ({ file: it.getAsFile(), entry: it.webkitGetAsEntry ? it.webkitGetAsEntry() : null }))
+    : Array.from(dt.files || []).map(file => ({ file, entry: null }));
+  const items = [];
+  let blockedFolders = 0;
+  for(const { file, entry } of dropped){
+    if(entry && entry.isDirectory){
+      // page ouverte en fichier local : Chrome refuse de lire le dossier (EncodingError)
+      let children;
+      try{ children = await readAllEntries(entry); }
+      catch(_){ blockedFolders++; continue; }
+      for(const child of children) await collectEntryFiles(child, items);
+    } else if(file){
+      // les photos seules passent par getAsFile(), qui fonctionne aussi en fichier local
+      items.push({ file, path: file.name });
+    }
+  }
+  return { items, blockedFolders };
+}
+
+function setSelectMode(on){
+  selectMode = on;
+  selectedIds.clear();
+  btnSelect.classList.toggle('primary', on);
+  btnSelect.querySelector('span').textContent = on ? 'Terminer' : 'Sélectionner';
+  document.body.classList.toggle('select-mode', on);
+  selectBar.hidden = !on;
+  render();
+}
+
+function groupSelected(){
+  if(selectedIds.size < 2) return;
+  const order = [...selectedIds];
+  const byId = new Map(posts.map(p => [p.id, p]));
+  const mergedPhotoIds = order.flatMap(id => byId.get(id) ? byId.get(id).photoIds : []);
+  const newPost = { id: newPostId(), photoIds: mergedPhotoIds };
+  // le carousel prend la place de la première photo sélectionnée
+  const anchor = order[0];
+  posts = posts.flatMap(p => p.id === anchor ? [newPost] : selectedIds.has(p.id) ? [] : [p]);
+  persistPosts();
+  setSelectMode(false);
+  showToast('Carousel créé avec ' + mergedPhotoIds.length + ' photos');
+}
+
+function deleteSelected(){
+  if(!selectedIds.size) return;
+  const removedPhotoIds = posts.filter(p => selectedIds.has(p.id)).flatMap(p => p.photoIds);
+  if(!confirm(`Supprimer ${selectedIds.size} publication(s) (${removedPhotoIds.length} photo(s)) ?`)) return;
+  posts = posts.filter(p => !selectedIds.has(p.id));
+  selectedIds.clear();
+  removePhotos(removedPhotoIds);
+  persistPosts();
+  render();
+}
+
+function ungroupPost(postId){
+  const idx = posts.findIndex(p => p.id === postId);
+  if(idx < 0) return;
+  const singles = posts[idx].photoIds.map(pid => ({ id: newPostId(), photoIds: [pid] }));
+  posts.splice(idx, 1, ...singles);
+  persistPosts();
+  closeModal();
+  render();
+}
+
+function deletePost(postId){
+  const post = posts.find(p => p.id === postId);
+  if(!post) return;
+  if(!confirm(post.photoIds.length > 1 ? `Supprimer ce carousel (${post.photoIds.length} photos) ?` : 'Supprimer cette photo ?')) return;
+  posts = posts.filter(p => p.id !== postId);
+  removePhotos(post.photoIds);
+  persistPosts();
+  closeModal();
+  render();
+}
+
+/* ---------- Grille ---------- */
+let renderQueued = false;
+function scheduleRender(){
+  if(renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; render(); });
+}
+
+function createTile(postId){
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.draggable = true;
+  tile.dataset.postId = postId;
+  tile.innerHTML = `
+    <img alt="" decoding="async" loading="lazy">
+    <span class="order-badge"></span>
+    <span class="carousel-badge"><i class="ti ti-stack-2"></i><b></b></span>
+    <span class="select-check"></span>`;
+  return tile;
+}
+
+function updateTile(tile, post, idx, selOrder){
+  const cover = photoStore[post.photoIds[0]];
+  const img = tile.firstElementChild;
+  if(cover && cover.thumbUrl){
+    if(img.getAttribute('src') !== cover.thumbUrl) img.src = cover.thumbUrl;
+    tile.classList.remove('loading');
+  } else {
+    img.removeAttribute('src');
+    tile.classList.add('loading');
+  }
+  tile.querySelector('.order-badge').textContent = idx + 1;
+  tile.classList.toggle('is-carousel', post.photoIds.length > 1);
+  tile.querySelector('.carousel-badge b').textContent = post.photoIds.length;
+  const rank = selOrder.get(post.id);
+  tile.classList.toggle('selected', !!rank);
+  tile.querySelector('.select-check').textContent = rank || '';
+}
+
+function render(){
+  countLabel.textContent = posts.length + (posts.length === 1 ? ' publication' : ' publications');
+  const n = selectedIds.size;
+  selCount.textContent = n + (n > 1 ? ' sélectionnées' : ' sélectionnée');
+  btnGroup.disabled = n < 2;
+  btnDeleteSel.disabled = n === 0;
+  btnSelectAll.disabled = posts.length === 0;
+  btnSelectAll.querySelector('span').textContent = posts.length > 0 && n === posts.length ? 'Tout désélectionner' : 'Tout sélectionner';
+  grid.classList.toggle('select-mode', selectMode);
+  emptyState.hidden = posts.length > 0;
+  grid.hidden = posts.length === 0;
+
+  const selOrder = new Map([...selectedIds].map((id, i) => [id, i + 1]));
+  const alive = new Set();
+  posts.forEach((post, idx) => {
+    let tile = tiles.get(post.id);
+    if(!tile){ tile = createTile(post.id); tiles.set(post.id, tile); }
+    updateTile(tile, post, idx, selOrder);
+    alive.add(post.id);
+    if(grid.children[idx] !== tile) grid.insertBefore(tile, grid.children[idx] || null);
+  });
+  for(const [id, tile] of tiles){
+    if(!alive.has(id)){ tile.remove(); tiles.delete(id); }
+  }
+}
+
+grid.addEventListener('click', (e) => {
+  const tile = e.target.closest('.tile');
+  if(!tile) return;
+  const postId = tile.dataset.postId;
+  if(selectMode){
+    if(selectedIds.has(postId)) selectedIds.delete(postId);
+    else selectedIds.add(postId);
+    render();
+  } else {
+    openModal(postId);
+  }
+});
+
+let dropTile = null;
+function clearDropTile(){ if(dropTile){ dropTile.classList.remove('drop-target'); dropTile = null; } }
+const dragZones = [document.getElementById('dragZoneTop'), document.getElementById('dragZoneBottom')];
+function setDragZones(on){
+  document.body.classList.toggle('dragging-post', on);
+  dragZones.forEach(zone => { zone.hidden = !on; zone.classList.remove('over'); });
+}
+function moveDraggedPost(to){
+  const from = posts.findIndex(p => p.id === draggedPostId);
+  draggedPostId = null;
+  if(from < 0 || to < 0 || from === to) return false;
+  const [moved] = posts.splice(from, 1);
+  posts.splice(to, 0, moved);
+  persistPosts();
+  render();
+  return true;
+}
+grid.addEventListener('dragstart', (e) => {
+  const tile = e.target.closest('.tile');
+  if(!tile) return;
+  draggedPostId = tile.dataset.postId;
+  tile.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', draggedPostId); }catch(_){}
+  // modifier le DOM pendant dragstart peut annuler le glisser dans Chrome : on attend une frame
+  requestAnimationFrame(() => { if(draggedPostId !== null) setDragZones(true); });
+});
+grid.addEventListener('dragend', (e) => {
+  const tile = e.target.closest('.tile');
+  if(tile) tile.classList.remove('dragging');
+  clearDropTile();
+  setDragZones(false);
+  draggedPostId = null;
+});
+dragZones.forEach(zone => {
+  const isTop = zone.dataset.edge === 'top';
+  zone.addEventListener('dragenter', (e) => {
+    if(draggedPostId === null) return;
+    e.preventDefault();
+    clearDropTile();
+    zone.classList.add('over');
+    window.scrollTo({ top: isTop ? 0 : document.documentElement.scrollHeight, behavior: 'auto' });
+  });
+  zone.addEventListener('dragover', (e) => {
+    if(draggedPostId === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', (e) => {
+    if(draggedPostId === null) return;
+    e.preventDefault();
+    const moved = moveDraggedPost(isTop ? 0 : posts.length - 1);
+    setDragZones(false);
+    if(moved) showToast(isTop ? 'Placée en première position' : 'Placée en dernière position');
+  });
+});
+grid.addEventListener('dragover', (e) => {
+  if(draggedPostId === null) return;
+  e.preventDefault();
+  const tile = e.target.closest('.tile');
+  if(tile === dropTile) return;
+  clearDropTile();
+  if(tile && tile.dataset.postId !== draggedPostId){ dropTile = tile; tile.classList.add('drop-target'); }
+});
+grid.addEventListener('drop', (e) => {
+  if(draggedPostId === null) return;
+  e.preventDefault();
+  const tile = e.target.closest('.tile');
+  clearDropTile();
+  if(!tile) return;
+  moveDraggedPost(posts.findIndex(p => p.id === tile.dataset.postId));
+});
+
+/* ---------- Vue plein écran ---------- */
+const lightbox = document.getElementById('lightbox');
+const lbImg = document.getElementById('lbImg');
+const lbStrip = document.getElementById('lbStrip');
+let fullUrl = null;
+let fullToken = 0;
+
+document.getElementById('lbClose').addEventListener('click', closeModal);
+document.getElementById('lbPrev').addEventListener('click', () => goToPhoto(modalIndex - 1));
+document.getElementById('lbNext').addEventListener('click', () => goToPhoto(modalIndex + 1));
+document.getElementById('lbUngroup').addEventListener('click', () => modalPost && ungroupPost(modalPost.id));
+document.getElementById('lbDelete').addEventListener('click', () => modalPost && deletePost(modalPost.id));
+document.addEventListener('keydown', (e) => {
+  if(!modalPost) return;
+  if(e.key === 'Escape') closeModal();
+  else if(e.key === 'ArrowLeft') goToPhoto(modalIndex - 1);
+  else if(e.key === 'ArrowRight') goToPhoto(modalIndex + 1);
+});
+
+function openModal(postId){
+  modalPost = posts.find(p => p.id === postId);
+  if(!modalPost) return;
+  modalIndex = 0;
+  lightbox.hidden = false;
+  document.body.classList.add('lightbox-open');
+  renderModal();
+}
+
+function closeModal(){
+  modalPost = null;
+  fullToken++;
+  lightbox.hidden = true;
+  document.body.classList.remove('lightbox-open');
+  lbImg.removeAttribute('src');
+  if(fullUrl){ URL.revokeObjectURL(fullUrl); fullUrl = null; }
+}
+
+function goToPhoto(i){
+  if(!modalPost || i < 0 || i >= modalPost.photoIds.length || i === modalIndex) return;
+  modalIndex = i;
+  renderModal();
+}
+
+function renderModal(){
+  if(!modalPost) return;
+  const count = modalPost.photoIds.length;
+  const isCarousel = count > 1;
+  const position = posts.indexOf(modalPost) + 1;
+  document.getElementById('lbTitle').innerHTML = isCarousel
+    ? `Publication ${position} <span class="tag"><i class="ti ti-stack-2"></i> Carousel · ${count} photos</span>`
+    : `Publication ${position}`;
+  document.getElementById('lbUngroup').hidden = !isCarousel;
+  document.getElementById('lbPrev').hidden = !isCarousel || modalIndex === 0;
+  document.getElementById('lbNext').hidden = !isCarousel || modalIndex === count - 1;
+  document.getElementById('lbCounter').hidden = !isCarousel;
+  document.getElementById('lbCounter').textContent = `${modalIndex + 1} / ${count}`;
+  document.getElementById('lbStripWrap').hidden = !isCarousel;
+
+  lbStrip.innerHTML = '';
+  if(isCarousel){
+    modalPost.photoIds.forEach((pid, i) => {
+      const photo = photoStore[pid];
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb' + (i === modalIndex ? ' current' : '');
+      thumb.draggable = true;
+      thumb.dataset.index = i;
+      thumb.dataset.photoId = pid;
+      thumb.innerHTML = `<img alt="" ${photo && photo.thumbUrl ? `src="${photo.thumbUrl}"` : ''}><span>${i + 1}</span>`;
+      lbStrip.appendChild(thumb);
+    });
+    const current = lbStrip.children[modalIndex];
+    if(current) current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  showFullPhoto();
+}
+
+async function showFullPhoto(){
+  const id = modalPost.photoIds[modalIndex];
+  const photo = photoStore[id];
+  const token = ++fullToken;
+  // aperçu immédiat avec la vignette, puis remplacement par l'original
+  if(photo && photo.thumbUrl) lbImg.src = photo.thumbUrl; else lbImg.removeAttribute('src');
+  lbImg.classList.add('is-preview');
+  let blob = photo && photo.file;
+  if(!blob){
+    const rec = await dbGet('photos', id).catch(() => null);
+    blob = rec && rec.blob;
+  }
+  if(token !== fullToken || !blob) return;
+  const url = URL.createObjectURL(blob);
+  const loader = new Image();
+  loader.src = url;
+  try{ await loader.decode(); }catch(_){}
+  if(token !== fullToken){ URL.revokeObjectURL(url); return; }
+  lbImg.src = url;
+  lbImg.classList.remove('is-preview');
+  if(fullUrl) URL.revokeObjectURL(fullUrl);
+  fullUrl = url;
+}
+
+lbStrip.addEventListener('click', (e) => {
+  const thumb = e.target.closest('.thumb');
+  if(thumb) goToPhoto(Number(thumb.dataset.index));
+});
+lbStrip.addEventListener('dragstart', (e) => {
+  const thumb = e.target.closest('.thumb');
+  if(!thumb) return;
+  modalDragIndex = Number(thumb.dataset.index);
+  thumb.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', thumb.dataset.photoId); }catch(_){}
+});
+lbStrip.addEventListener('dragend', (e) => {
+  const thumb = e.target.closest('.thumb');
+  if(thumb) thumb.classList.remove('dragging');
+  lbStrip.querySelectorAll('.drop-target').forEach(t => t.classList.remove('drop-target'));
+  modalDragIndex = null;
+});
+lbStrip.addEventListener('dragover', (e) => {
+  if(modalDragIndex === null) return;
+  e.preventDefault();
+  const thumb = e.target.closest('.thumb');
+  lbStrip.querySelectorAll('.drop-target').forEach(t => { if(t !== thumb) t.classList.remove('drop-target'); });
+  if(thumb) thumb.classList.add('drop-target');
+});
+lbStrip.addEventListener('drop', (e) => {
+  if(modalDragIndex === null || !modalPost) return;
+  e.preventDefault();
+  const thumb = e.target.closest('.thumb');
+  if(!thumb) return;
+  const to = Number(thumb.dataset.index);
+  const from = modalDragIndex;
+  modalDragIndex = null;
+  if(from === to) return;
+  const [moved] = modalPost.photoIds.splice(from, 1);
+  modalPost.photoIds.splice(to, 0, moved);
+  modalIndex = to;
+  persistPosts();
+  renderModal();
+  render();
+});
+
+/* ---------- Import par glisser-déposer depuis le bureau ---------- */
+let dragCounter = 0;
+function isFileDrag(e){
+  return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+}
+function setDropHighlight(on){
+  const target = posts.length ? grid : emptyState;
+  target.classList.toggle('file-drag-over', on);
+  if(!on){ grid.classList.remove('file-drag-over'); emptyState.classList.remove('file-drag-over'); }
+}
+window.addEventListener('dragenter', (e) => {
+  if(!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter++;
+  setDropHighlight(true);
+});
+window.addEventListener('dragover', (e) => {
+  if(!isFileDrag(e)) return;
+  e.preventDefault();
+});
+window.addEventListener('dragleave', (e) => {
+  if(!isFileDrag(e)) return;
+  dragCounter = Math.max(0, dragCounter - 1);
+  if(dragCounter === 0) setDropHighlight(false);
+});
+window.addEventListener('drop', async (e) => {
+  if(!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter = 0;
+  setDropHighlight(false);
+  const reading = filesFromDataTransfer(e.dataTransfer);
+  showToast('Lecture des fichiers…');
+  const { items, blockedFolders } = await reading;
+  addFiles(sortByPath(items), blockedFolders ? FOLDER_BLOCKED_MSG : '');
+});
+
+init();
+</script>
+</body>
+</html>
