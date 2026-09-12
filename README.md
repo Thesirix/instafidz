@@ -38,17 +38,7 @@ Then you open Instagram and publish in the order you planned.
 
 ## Quick Start
 
-### Option A: use it online (recommended)
-
-Open the GitHub Pages URL of the repository:
-
-```
-https://thesirix.github.io/instafidz/
-```
-
-Everything works out of the box, including dragging a whole folder (with sub-folders) onto the page.
-
-### Option B: run it locally on Windows
+### run it locally on Windows
 
 ```bash
 git clone https://github.com/Thesirix/instafidz.git
@@ -56,10 +46,6 @@ cd instafidz
 ```
 
 Then double-click **`Lancer-organisateur.bat`**. It opens InstaFidz in a dedicated Chrome (or Edge) window where folder drag & drop is enabled, even if Chrome is already open.
-
-### Option C: just open the file
-
-Double-click `index.html`. Photos can be dragged in normally. For folders, use the **Parcourir** (Browse) button: Chromium blocks folder drops on pages opened straight from disk ([why](#the-file-limitation)).
 
 ### Your first feed in 5 steps
 
