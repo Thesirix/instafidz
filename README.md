@@ -241,7 +241,12 @@ function fileSignature(f) {
 
 - Non-image files (`.txt`, `.xmp`, `Thumbs.db`…) are ignored.
 - Files are sorted by full path with a **natural sort** (`localeCompare(…, { numeric: true })`), so `img2` comes before `img10` and sub-folders stay grouped.
-- A photo whose signature already exists, in the library **or** earlier in the same import, is skipped. The notification says how many: _142 photo(s) ajoutée(s) · 64 doublon(s) ignoré(s)_. Re-importing a folder after adding new pictures to it only adds the new ones.
+- A photo whose signature is already **in the feed** (or earlier in the same import) is not added automatically. Re-importing a folder after adding new pictures to it only adds the new ones.
+- Instead of silently ignoring it, a panel lists each duplicate with the existing photo's thumbnail and position (_publication 23 (photo 2 du carousel)_):
+  - **Retrouver** scrolls to the existing photo, then outlines it in orange with a glow and a bump animation. If the photo is in the feed several times, each click jumps to the next copy (_exemplaire 1/2_).
+  - **Ajouter en double** adds that photo anyway, and **Tout ajouter en double** does it for the whole list. A double is a real second copy, saved like any other photo.
+- A photo that is still saved but no longer appears in the feed is **put back in the feed** when you import it again, reusing the stored file instead of saving it twice.
+- At startup, a missing photo only removes itself from its carousel. The rest of the carousel is kept.
 - New photos are inserted **at the top** of the feed, like new Instagram posts.
 
 ### The `file://` limitation

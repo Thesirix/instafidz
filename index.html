@@ -17,6 +17,7 @@
     --ig-danger:#ED4956;
     --carousel:#16A34A;
     --placeholder:#EFEFEF;
+    --locate:#FF9F0A;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -125,6 +126,26 @@
   .tile.is-carousel::after{border:4px solid var(--carousel);}
   .tile.selected::after{border:4px solid var(--ig-accent);background:rgba(0,149,246,.18);}
   .tile.drop-target::after{border:4px dashed var(--ig-accent);background:rgba(0,149,246,.12);}
+  /* Photo retrouvée : entourée, lumineuse, et qui rebondit */
+  .tile.locate{
+    z-index:2;
+    animation:locate-bump .8s cubic-bezier(.3,1.5,.5,1) .45s 2, locate-glow 1.1s ease-in-out infinite;
+  }
+  .tile.locate::after{border:4px solid #fff;}
+  @keyframes locate-bump{
+    0%{transform:scale(1);}
+    30%{transform:scale(1.12);}
+    55%{transform:scale(.95);}
+    80%{transform:scale(1.04);}
+    100%{transform:scale(1);}
+  }
+  @keyframes locate-glow{
+    0%,100%{box-shadow:0 0 0 4px var(--locate),0 0 18px 4px rgba(255,159,10,.55);}
+    50%{box-shadow:0 0 0 7px var(--locate),0 0 44px 16px rgba(255,159,10,.8);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .tile.locate{animation:none;box-shadow:0 0 0 6px var(--locate);}
+  }
 
   .tile .order-badge{
     position:absolute;top:8px;left:8px;z-index:1;
@@ -275,6 +296,31 @@
   .lb-strip .thumb.dragging{opacity:.3;}
   .lb-strip .thumb.drop-target{border-style:dashed;border-color:#fff;}
 
+  /* Panneau des photos déjà présentes : les retrouver ou les ajouter quand même */
+  .dup-panel{
+    position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:90;
+    width:min(640px, calc(100% - 32px));
+    background:var(--ig-surface);color:var(--ig-text);
+    border:1px solid var(--ig-border);border-left:4px solid var(--locate);border-radius:12px;
+    box-shadow:0 12px 40px rgba(0,0,0,.25);
+    padding:10px 12px;
+    animation:dup-in .25s ease-out;
+  }
+  @keyframes dup-in{from{opacity:0;transform:translate(-50%,-12px);}}
+  body.dragging-post .dup-panel{visibility:hidden;}
+  .dup-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;}
+  .dup-head .ti-copy{color:var(--locate);font-size:18px;}
+  .dup-close{margin-left:auto;background:none;border:none;color:var(--ig-text-soft);font-size:20px;cursor:pointer;padding:2px;line-height:1;}
+  .dup-list{max-height:min(300px, 50vh);overflow-y:auto;margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+  .dup-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .dup-row img{width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--placeholder);flex-shrink:0;}
+  .dup-row img:not([src]){visibility:hidden;}
+  .dup-info{flex:1;min-width:140px;display:flex;flex-direction:column;font-size:13px;}
+  .dup-info b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dup-info span{color:var(--ig-text-soft);font-size:12px;}
+  .dup-panel button.pill{padding:6px 11px;font-size:13px;}
+  .dup-foot{display:flex;justify-content:flex-end;margin-top:8px;}
+
   .toast{
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
     background:var(--ig-text);color:var(--ig-bg);
@@ -313,7 +359,7 @@
     <span class="count" id="countLabel">0 publication</span>
     <span class="thumb-progress" id="thumbProgress" hidden></span>
   </div>
-  <p class="hint">Glissez-déposez les vignettes pour changer l'ordre du feed (en mode sélection, attraper une photo sélectionnée déplace toute la sélection, dans l'ordre 1, 2, 3…) — pendant le déplacement, la molette de la souris fait défiler la page, et la barre bleue en haut ou en bas de l'écran permet de sauter directement tout en haut ou tout en bas. Cliquez sur une photo pour l'ouvrir en plein écran (← → pour naviguer, Échap pour fermer). En mode sélection, les photos du carousel suivent l'ordre dans lequel vous les sélectionnez (1, 2, 3…) ; Ctrl+A sélectionne tout. Une photo identique déjà présente (même nom, taille et date) n'est pas ajoutée deux fois.</p>
+  <p class="hint">Glissez-déposez les vignettes pour changer l'ordre du feed (en mode sélection, attraper une photo sélectionnée déplace toute la sélection, dans l'ordre 1, 2, 3…) — pendant le déplacement, la molette de la souris fait défiler la page, et la barre bleue en haut ou en bas de l'écran permet de sauter directement tout en haut ou tout en bas. Cliquez sur une photo pour l'ouvrir en plein écran (← → pour naviguer, Échap pour fermer). En mode sélection, les photos du carousel suivent l'ordre dans lequel vous les sélectionnez (1, 2, 3…) ; Ctrl+A sélectionne tout. Une photo identique déjà présente (même nom, taille et date) n'est pas ajoutée deux fois : un panneau permet alors de la retrouver dans le feed, ou de l'ajouter quand même en double.</p>
 
   <div class="empty-state" id="emptyState" hidden>
     <i class="ti ti-photo-plus"></i>
@@ -361,6 +407,17 @@
   <div class="lb-strip-wrap" id="lbStripWrap">
     <p>Ordre dans le carousel — glissez pour réordonner</p>
     <div class="lb-strip" id="lbStrip"></div>
+  </div>
+</div>
+
+<div class="dup-panel" id="dupPanel" hidden>
+  <div class="dup-head">
+    <i class="ti ti-copy"></i><span id="dupTitle"></span>
+    <button class="dup-close" id="dupClose" aria-label="Fermer"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="dup-list" id="dupList"></div>
+  <div class="dup-foot" id="dupFoot" hidden>
+    <button class="pill" id="dupAddAll"><i class="ti ti-copy-plus"></i><span></span></button>
   </div>
 </div>
 
@@ -565,8 +622,10 @@ async function init(){
     uid = maxUid + 1;
     if(metaPosts && Array.isArray(metaPosts.value)){
       const seen = new Set();
+      // une photo introuvable ne fait disparaître qu'elle, pas tout son carousel
       posts = metaPosts.value
-        .filter(p => p.photoIds.length && p.photoIds.every(pid => photoStore[pid]))
+        .map(p => ({ id: p.id, photoIds: (p.photoIds || []).filter(pid => photoStore[pid]) }))
+        .filter(p => p.photoIds.length)
         .map(p => {
           const id = seen.has(p.id) ? newPostId() : p.id;
           seen.add(id);
@@ -637,14 +696,33 @@ function isImageFile(f){ return f.type.startsWith('image/') || IMAGE_EXT.test(f.
 // même nom + même taille + même date de modification = même photo
 function fileSignature(f){ return `${f.name}|${f.size}|${f.lastModified}`; }
 
-function addFiles(fileList, note = ''){
-  const known = new Set(Object.values(photoStore).map(p => p.sig).filter(Boolean));
+// allowDuplicates : l'utilisateur a demandé explicitement d'ajouter la photo en double
+function addFiles(fileList, note = '', allowDuplicates = false){
+  const inFeed = new Set(posts.flatMap(p => p.photoIds));
+  const known = new Set();
+  const hidden = new Map();      // signature -> photo sauvegardée mais absente du feed
+  Object.values(photoStore).forEach(p => {
+    if(!p.sig) return;
+    if(inFeed.has(p.id)) known.add(p.sig);
+    else if(!hidden.has(p.sig)) hidden.set(p.sig, p.id);
+  });
   const newPosts = [];
-  let skipped = 0;
+  const duplicates = [];
+  let restored = 0;
   Array.from(fileList).forEach(file => {
     if(!isImageFile(file)) return;
     const sig = fileSignature(file);
-    if(known.has(sig)){ skipped++; return; }
+    if(hidden.has(sig)){
+      // déjà sauvegardée mais invisible : on la remet dans le feed au lieu de la stocker une 2e fois
+      const id = hidden.get(sig);
+      hidden.delete(sig);
+      known.add(sig);
+      if(!photoStore[id].thumbUrl) queueThumb(id);
+      newPosts.push({ id: newPostId(), photoIds: [id] });
+      restored++;
+      return;
+    }
+    if(known.has(sig) && !allowDuplicates){ duplicates.push({ file, sig }); return; }
     known.add(sig);
     const id = 'p' + (uid++);
     photoStore[id] = { id, name: file.name, sig, thumbUrl: null, file };
@@ -657,11 +735,119 @@ function addFiles(fileList, note = ''){
     persistPosts();
     render();
   }
-  const summary = !newPosts.length && !skipped
+  if(duplicates.length) showDuplicates(duplicates);
+  const summary = allowDuplicates && newPosts.length
+    ? newPosts.length + (newPosts.length > 1 ? ' photos ajoutées en double' : ' photo ajoutée en double')
+    : !newPosts.length && !duplicates.length
     ? (note ? '' : 'Aucune image trouvée')
-    : newPosts.length + ' photo(s) ajoutée(s)' + (skipped ? ` · ${skipped} doublon(s) ignoré(s) (photo identique déjà présente)` : '');
-  showToast([summary, note].filter(Boolean).join(' — '), note ? 7000 : skipped ? 5000 : 1800);
+    : newPosts.length + ' photo(s) ajoutée(s)'
+      + (restored ? ` (dont ${restored} retrouvée(s) dans la sauvegarde)` : '')
+      + (duplicates.length ? ` · ${duplicates.length} doublon(s) déjà dans le feed` : '');
+  showToast([summary, note].filter(Boolean).join(' — '), note ? 7000 : duplicates.length || restored ? 5000 : 1800);
 }
+
+/* ---------- Doublons : retrouver la photo déjà présente, ou l'ajouter quand même ---------- */
+const dupPanel = document.getElementById('dupPanel');
+const dupList = document.getElementById('dupList');
+const dupAddAll = document.getElementById('dupAddAll');
+let dupEntries = [];             // { key, file, sig, next }
+let dupKey = 0;
+
+function feedHitsBySig(){
+  // signature -> toutes les places où cette photo apparaît dans le feed
+  const map = new Map();
+  posts.forEach((post, index) => post.photoIds.forEach((pid, slide) => {
+    const sig = photoStore[pid] && photoStore[pid].sig;
+    if(!sig) return;
+    if(!map.has(sig)) map.set(sig, []);
+    map.get(sig).push({ post, index, slide });
+  }));
+  return map;
+}
+function describeHit(hit){
+  return `publication ${hit.index + 1}` + (hit.post.photoIds.length > 1 ? ` (photo ${hit.slide + 1} du carousel)` : '');
+}
+function showDuplicates(list){
+  dupEntries = list.map(d => ({ ...d, key: String(dupKey++), next: 0 }));
+  renderDupPanel();
+}
+function renderDupPanel(){
+  dupPanel.hidden = !dupEntries.length;
+  const n = dupEntries.length;
+  document.getElementById('dupTitle').textContent = n > 1 ? `${n} photos sont déjà dans le feed` : 'Cette photo est déjà dans le feed';
+  document.getElementById('dupFoot').hidden = n < 2;
+  dupAddAll.querySelector('span').textContent = `Tout ajouter en double (${n})`;
+  dupList.replaceChildren(...dupEntries.map(d => {
+    const row = document.createElement('div');
+    row.className = 'dup-row';
+    row.dataset.key = d.key;
+    row.innerHTML = `
+      <img alt="">
+      <div class="dup-info"><b></b><span class="dup-pos"></span></div>
+      <button class="pill primary" data-act="locate" title="Faire défiler jusqu'à la photo déjà présente"><i class="ti ti-focus-2"></i><span>Retrouver</span></button>
+      <button class="pill" data-act="add" title="Ajouter cette photo une deuxième fois"><i class="ti ti-copy-plus"></i><span>Ajouter en double</span></button>`;
+    row.querySelector('b').textContent = d.file.name;
+    return row;
+  }));
+  updateDupPositions();
+}
+function updateDupPositions(){
+  if(dupPanel.hidden) return;
+  const hitsBySig = feedHitsBySig();
+  dupList.querySelectorAll('.dup-row').forEach(row => {
+    const d = dupEntries.find(e => e.key === row.dataset.key);
+    const hits = (d && hitsBySig.get(d.sig)) || [];
+    const first = hits[0];
+    const photo = first && photoStore[first.post.photoIds[first.slide]];
+    const img = row.querySelector('img');
+    if(photo && photo.thumbUrl && img.getAttribute('src') !== photo.thumbUrl) img.src = photo.thumbUrl;
+    row.querySelector('.dup-pos').textContent = !first ? 'n\'est plus dans le feed'
+      : hits.slice(0, 3).map(describeHit).join(', ') + (hits.length > 3 ? '…' : '');
+    row.querySelector('[data-act="locate"]').disabled = !first;
+  });
+}
+function bumpTile(tile){
+  tile.classList.remove('locate');
+  void tile.offsetWidth; // relance l'animation si on clique plusieurs fois
+  tile.classList.add('locate');
+  clearTimeout(tile.locateTimer);
+  tile.locateTimer = setTimeout(() => tile.classList.remove('locate'), 3500);
+}
+function locateDuplicate(d){
+  const hits = feedHitsBySig().get(d.sig) || [];
+  if(!hits.length) return;
+  // plusieurs exemplaires : chaque clic passe au suivant
+  const n = d.next % hits.length;
+  d.next = n + 1;
+  const tile = tiles.get(hits[n].post.id);
+  if(!tile) return;
+  if(modalPost) closeModal();
+  tile.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  bumpTile(tile);
+  const label = describeHit(hits[n]);
+  showToast(label[0].toUpperCase() + label.slice(1) + (hits.length > 1 ? ` · exemplaire ${n + 1}/${hits.length}` : ''), 3000);
+}
+dupList.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if(!btn) return;
+  const d = dupEntries.find(x => x.key === btn.closest('.dup-row').dataset.key);
+  if(!d) return;
+  if(btn.dataset.act === 'locate') return locateDuplicate(d);
+  dupEntries = dupEntries.filter(x => x !== d);
+  renderDupPanel();
+  addFiles([d.file], '', true);
+});
+dupAddAll.addEventListener('click', () => {
+  const files = dupEntries.map(d => d.file);
+  dupEntries = [];
+  renderDupPanel();
+  addFiles(files, '', true);
+});
+function closeDupPanel(){ dupEntries = []; renderDupPanel(); }
+document.getElementById('dupClose').addEventListener('click', closeDupPanel);
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && !modalPost && !pointerDrag && !dupPanel.hidden) closeDupPanel();
+});
 
 /* ---------- Lecture de dossiers (sous-dossiers compris) ---------- */
 function sortByPath(items){
@@ -833,6 +1019,7 @@ function render(){
   for(const [id, tile] of tiles){
     if(!alive.has(id)){ tile.remove(); tiles.delete(id); }
   }
+  updateDupPositions();
 }
 
 grid.addEventListener('click', (e) => {
