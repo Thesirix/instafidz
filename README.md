@@ -59,7 +59,7 @@ Then double-click **`Lancer-organisateur.bat`**. It opens InstaFidz in a dedicat
 | ---- | ----------------------------------------------------------------------------------------- | ---------------------------------------- |
 | 1    | Import photos: drop files/folders, or use the buttons                                     | **Ajouter des photos** / **Parcourir**   |
 | 2    | Reorder: drag a tile onto another tile                                                    | the grid                                 |
-| 3    | Move far in one go: while dragging, hover the blue bar at the top or bottom of the screen | drag zones                               |
+| 3    | Move far: while holding a photo, scroll with the mouse wheel, or hover the blue bar at the top or bottom of the screen to jump | mouse wheel / drag zones                 |
 | 4    | Build carousels: select photos **in the order you want them to appear**, then group       | **Sélectionner** → **Créer un carousel** |
 | 5    | Check a post full screen, reorder its carousel slides, ungroup or delete it               | click a tile                             |
 
@@ -131,6 +131,8 @@ tx.oncomplete = () => finish();
 tx.onerror = tx.onabort = () =>
   finish(tx.error || new Error("Transaction annulée"));
 ```
+
+The status sits in a small pill fixed at the bottom-left corner, so it stays visible wherever you are in the feed. It ignores the mouse (`pointer-events: none`), so it never blocks a click or a drop.
 
 | State    | Shown when                                                                      | Label                                        |
 | -------- | ------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -264,23 +266,24 @@ Dropped **files** are not affected (they are read with `getAsFile()`). InstaFidz
 
 ### Drag & drop reordering
 
-Native HTML5 drag & drop. Dropping a tile on another tile moves it to that position.
+Dropping a tile on another tile moves it to that position.
 
-**Jump zones.** Auto-scrolling a long feed while holding a photo is slow. While a drag is in progress, two full-width drop zones appear at the top and bottom of the viewport:
+Tiles are moved with **pointer events** (`pointerdown` / `pointermove` / `pointerup`), not native HTML5 drag & drop: on Windows, a native drag runs inside a system loop that **blocks the mouse wheel** until the photo is released, so a long feed could not be scrolled while holding a photo. With pointer events:
+
+- a press becomes a drag only after the pointer moves 6 px, so a simple click still opens or selects the photo,
+- the tile shrinks into a small tilted copy that follows the cursor (a 280 ms Web Animations API transition, skipped when `prefers-reduced-motion` is set), and the tile under it is found with `document.elementFromPoint()`,
+- in selection mode, grabbing a **selected** photo moves the **whole selection** as one block, in selection order (1, 2, 3…). The ghost becomes a stack with a counter, and the selection is kept after the drop so you can still group it. Grabbing an unselected photo moves only that photo,
+- **the mouse wheel scrolls the page while you hold the photo**; the target tile is recomputed on every `scroll` event,
+- `Esc` cancels the move.
+
+**Jump zones.** While a photo is held, two full-width drop zones appear at the top and bottom of the viewport:
 
 | Interaction               | Result                                                 |
 | ------------------------- | ------------------------------------------------------ |
+| mouse wheel               | scrolls the feed under the held photo                  |
 | hover the **bottom** zone | page jumps instantly to the end of the feed            |
 | hover the **top** zone    | page jumps instantly to the start of the feed          |
-| drop on a zone            | photo is placed at the very last / very first position |
-
-The zones are shown one frame after `dragstart`, because mutating the DOM inside `dragstart` can cancel the drag in Chromium:
-
-```js
-requestAnimationFrame(() => {
-  if (draggedPostId !== null) setDragZones(true);
-});
-```
+| drop on a zone            | photo(s) placed at the very last / very first position |
 
 Two floating buttons (bottom right) also scroll to the top or bottom of the page outside of a drag.
 
@@ -444,7 +447,7 @@ function fileSignature(f) {
 
 - A modern desktop browser. **Chrome and Edge are tested.** Firefox should work (all APIs used are supported) but is untested.
 - Enough free disk space: originals are stored in full in the browser (Chromium allows a site to use a large share of free disk space).
-- Desktop only for organizing: HTML5 drag & drop does not work with touch screens.
+- Desktop only for organizing: photos are moved with a mouse (or pen), not with touch.
 
 ---
 

@@ -82,7 +82,17 @@
   .thumb-progress{font-size:13px;color:var(--ig-accent);display:flex;align-items:center;gap:6px;}
   .thumb-progress i{animation:spin 1s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  .save-status{font-size:13px;color:var(--ig-text-soft);display:flex;align-items:center;gap:5px;margin-left:auto;}
+  /* Statut de sauvegarde toujours visible, discret, dans le coin en bas à gauche */
+  .save-status{
+    position:fixed;left:16px;bottom:16px;z-index:40;
+    max-width:calc(100% - 96px);
+    display:flex;align-items:center;gap:5px;
+    font-size:12px;color:var(--ig-text-soft);
+    background:var(--ig-surface);border:1px solid var(--ig-border);border-radius:999px;
+    padding:5px 11px;box-shadow:0 2px 8px rgba(0,0,0,.08);
+    opacity:.9;pointer-events:none;
+  }
+  body.select-mode .save-status{bottom:96px;}
   .save-status.saving{color:var(--ig-accent);}
   .save-status.saving i{animation:spin 1s linear infinite;}
   .save-status.error{color:var(--ig-danger);font-weight:600;}
@@ -196,6 +206,25 @@
   .drag-zone.bottom{bottom:0;}
   .drag-zone i{font-size:28px;}
   .drag-zone.over{background:var(--ig-accent-dark);outline:3px dashed #fff;outline-offset:-8px;}
+  body.dragging-post{user-select:none;}
+  body.dragging-post *{cursor:grabbing!important;}
+  /* Miniature(s) qui suivent la souris pendant le déplacement */
+  .drag-ghost{position:fixed;left:0;top:0;width:0;height:0;z-index:70;pointer-events:none;}
+  .drag-ghost .card{
+    position:absolute;left:-55px;top:-55px;width:110px;height:110px;
+    border:3px solid var(--ig-accent);border-radius:8px;overflow:hidden;
+    background:var(--placeholder);
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  .drag-ghost .card img{width:100%;height:100%;object-fit:cover;display:block;}
+  .drag-ghost .count{
+    position:absolute;left:36px;top:-72px;
+    display:flex;align-items:center;gap:3px;
+    background:var(--ig-accent);color:#fff;border:2px solid #fff;border-radius:999px;
+    padding:2px 8px;font-size:13px;font-weight:800;white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+  }
+  .drag-ghost .count.carousel{background:var(--carousel);}
 
   /* Vue plein écran */
   .lightbox{
@@ -283,9 +312,8 @@
   <div class="profile-strip">
     <span class="count" id="countLabel">0 publication</span>
     <span class="thumb-progress" id="thumbProgress" hidden></span>
-    <span class="save-status" id="saveStatus"></span>
   </div>
-  <p class="hint">Glissez-déposez les vignettes pour changer l'ordre du feed — pendant le glisser, amenez la photo sur la barre bleue en haut ou en bas de l'écran pour sauter directement tout en haut ou tout en bas. Cliquez sur une photo pour l'ouvrir en plein écran (← → pour naviguer, Échap pour fermer). En mode sélection, les photos du carousel suivent l'ordre dans lequel vous les sélectionnez (1, 2, 3…) ; Ctrl+A sélectionne tout. Une photo identique déjà présente (même nom, taille et date) n'est pas ajoutée deux fois.</p>
+  <p class="hint">Glissez-déposez les vignettes pour changer l'ordre du feed (en mode sélection, attraper une photo sélectionnée déplace toute la sélection, dans l'ordre 1, 2, 3…) — pendant le déplacement, la molette de la souris fait défiler la page, et la barre bleue en haut ou en bas de l'écran permet de sauter directement tout en haut ou tout en bas. Cliquez sur une photo pour l'ouvrir en plein écran (← → pour naviguer, Échap pour fermer). En mode sélection, les photos du carousel suivent l'ordre dans lequel vous les sélectionnez (1, 2, 3…) ; Ctrl+A sélectionne tout. Une photo identique déjà présente (même nom, taille et date) n'est pas ajoutée deux fois.</p>
 
   <div class="empty-state" id="emptyState" hidden>
     <i class="ti ti-photo-plus"></i>
@@ -336,6 +364,8 @@
   </div>
 </div>
 
+<div class="save-status" id="saveStatus"></div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -343,7 +373,6 @@ let posts = [];
 const photoStore = {};           // id -> { id, name, thumbUrl, file? }
 let selectMode = false;
 const selectedIds = new Set();   // un Set garde l'ordre d'insertion = ordre de sélection
-let draggedPostId = null;
 let modalPost = null;
 let modalIndex = 0;
 let modalDragIndex = null;
@@ -753,7 +782,6 @@ function scheduleRender(){
 function createTile(postId){
   const tile = document.createElement('div');
   tile.className = 'tile';
-  tile.draggable = true;
   tile.dataset.postId = postId;
   tile.innerHTML = `
     <img alt="" decoding="async" loading="lazy">
@@ -827,72 +855,159 @@ function setDragZones(on){
   document.body.classList.toggle('dragging-post', on);
   dragZones.forEach(zone => { zone.hidden = !on; zone.classList.remove('over'); });
 }
-function moveDraggedPost(to){
-  const from = posts.findIndex(p => p.id === draggedPostId);
-  draggedPostId = null;
-  if(from < 0 || to < 0 || from === to) return false;
-  const [moved] = posts.splice(from, 1);
-  posts.splice(to, 0, moved);
+// target : 'top', 'bottom' ou l'id de la publication visée ; grabbedId : la photo tenue par la souris
+function moveDraggedPosts(ids, grabbedId, target){
+  const moving = new Set(ids);
+  const group = ids.map(id => posts.find(p => p.id === id)).filter(Boolean);
+  if(!group.length) return false;
+  const rest = posts.filter(p => !moving.has(p.id));
+  let at;
+  if(target === 'top') at = 0;
+  else if(target === 'bottom') at = rest.length;
+  else {
+    const t = rest.findIndex(p => p.id === target);
+    if(t < 0) return false;
+    // vers le bas : juste après la case visée ; vers le haut : à sa place
+    const down = posts.findIndex(p => p.id === grabbedId) < posts.findIndex(p => p.id === target);
+    at = down ? t + 1 : t;
+  }
+  const next = [...rest.slice(0, at), ...group, ...rest.slice(at)];
+  if(next.every((p, i) => p === posts[i])) return false;
+  posts = next;
   persistPosts();
   render();
   return true;
 }
-grid.addEventListener('dragstart', (e) => {
-  const tile = e.target.closest('.tile');
-  if(!tile) return;
-  draggedPostId = tile.dataset.postId;
-  tile.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  try{ e.dataTransfer.setData('text/plain', draggedPostId); }catch(_){}
-  // modifier le DOM pendant dragstart peut annuler le glisser dans Chrome : on attend une frame
-  requestAnimationFrame(() => { if(draggedPostId !== null) setDragZones(true); });
-});
-grid.addEventListener('dragend', (e) => {
-  const tile = e.target.closest('.tile');
-  if(tile) tile.classList.remove('dragging');
+/* Déplacement des vignettes à la souris. Pas de glisser-déposer natif : sous Windows il bloque
+   la molette tant qu'on tient la photo, impossible alors de faire défiler jusqu'au bon endroit. */
+const DRAG_THRESHOLD = 6;        // pixels à parcourir avant qu'un clic devienne un déplacement
+const GHOST_SIZE = 110;          // taille de la miniature qui suit la souris
+const GHOST_CARDS = [[0, -4], [7, 3], [14, 9]]; // décalage (px) et rotation (deg) des miniatures empilées
+let pointerDrag = null;          // { pointerId, startX, startY, x, y, tile, ids, ghost, zone }
+let suppressClick = false;
+
+function dragTargetAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  return el ? (el.closest('.drag-zone') || el.closest('.tile')) : null;
+}
+function buildGhost(ids, grabbedId, x, y){
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.style.transform = `translate(${x}px, ${y}px)`;
+  const shown = [grabbedId, ...ids.filter(id => id !== grabbedId)].slice(0, GHOST_CARDS.length);
+  const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // la photo tenue est dessinée en dernier, au-dessus de la pile
+  shown.slice().reverse().forEach((id, k) => {
+    const i = shown.length - 1 - k;
+    const [offset, angle] = GHOST_CARDS[i];
+    const post = posts.find(p => p.id === id);
+    const cover = post && photoStore[post.photoIds[0]];
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.transform = `translate(${offset}px, ${offset}px) rotate(${angle}deg)`;
+    if(cover && cover.thumbUrl) card.innerHTML = `<img alt="" src="${cover.thumbUrl}">`;
+    ghost.appendChild(card);
+    const tile = tiles.get(id);
+    if(!animate || !tile) return;
+    // petite animation : la vignette quitte sa case et se réduit en miniature sous la souris
+    const r = tile.getBoundingClientRect();
+    const top = Math.max(-r.height, Math.min(innerHeight, r.top));
+    card.animate([
+      { left: `${r.left - x}px`, top: `${top - y}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: '0px', transform: 'translate(0, 0) rotate(0deg)' },
+      { left: `${-GHOST_SIZE / 2}px`, top: `${-GHOST_SIZE / 2}px`, width: `${GHOST_SIZE}px`, height: `${GHOST_SIZE}px`, borderRadius: '8px', transform: card.style.transform },
+    ], { duration: 280, delay: i * 45, easing: 'cubic-bezier(.34, 1.36, .64, 1)', fill: 'backwards' });
+  });
+  const grabbed = posts.find(p => p.id === grabbedId);
+  if(ids.length > 1){
+    ghost.insertAdjacentHTML('beforeend', `<span class="count">${ids.length}</span>`);
+  } else if(grabbed && grabbed.photoIds.length > 1){
+    ghost.insertAdjacentHTML('beforeend', `<span class="count carousel"><i class="ti ti-stack-2"></i>${grabbed.photoIds.length}</span>`);
+  }
+  return ghost;
+}
+function startPointerDrag(){
+  const d = pointerDrag;
+  const grabbedId = d.tile.dataset.postId;
+  if(!posts.some(p => p.id === grabbedId)){ pointerDrag = null; return; }
+  // photo sélectionnée : toute la sélection part avec, dans l'ordre de sélection
+  const selection = [...selectedIds].filter(id => posts.some(p => p.id === id));
+  d.ids = selectMode && selectedIds.has(grabbedId) && selection.length > 1 ? selection : [grabbedId];
+  window.getSelection().removeAllRanges();
+  d.ids.forEach(id => { const t = tiles.get(id); if(t) t.classList.add('dragging'); });
+  d.ghost = buildGhost(d.ids, grabbedId, d.x, d.y);
+  document.body.appendChild(d.ghost);
+  setDragZones(true);
+}
+function updatePointerDrag(){
+  const d = pointerDrag;
+  d.ghost.style.transform = `translate(${d.x}px, ${d.y}px)`;
+  const target = dragTargetAt(d.x, d.y);
+  const zone = target && target.classList.contains('drag-zone') ? target : null;
+  if(zone !== d.zone){
+    if(d.zone) d.zone.classList.remove('over');
+    d.zone = zone;
+    if(zone){
+      zone.classList.add('over');
+      window.scrollTo({ top: zone.dataset.edge === 'top' ? 0 : document.documentElement.scrollHeight, behavior: 'auto' });
+    }
+  }
+  const tile = !zone && target && !d.ids.includes(target.dataset.postId) ? target : null;
+  if(tile !== dropTile){
+    clearDropTile();
+    if(tile){ dropTile = tile; tile.classList.add('drop-target'); }
+  }
+}
+function endPointerDrag(commit){
+  const d = pointerDrag;
+  if(!d) return;
+  pointerDrag = null;
+  if(!d.ghost) return; // simple clic : le click normal ouvre ou sélectionne la photo
+  const zone = d.zone;
+  const tile = dropTile;
+  d.ghost.remove();
+  d.ids.forEach(id => { const t = tiles.get(id); if(t) t.classList.remove('dragging'); });
   clearDropTile();
   setDragZones(false);
-  draggedPostId = null;
-});
-dragZones.forEach(zone => {
-  const isTop = zone.dataset.edge === 'top';
-  zone.addEventListener('dragenter', (e) => {
-    if(draggedPostId === null) return;
-    e.preventDefault();
-    clearDropTile();
-    zone.classList.add('over');
-    window.scrollTo({ top: isTop ? 0 : document.documentElement.scrollHeight, behavior: 'auto' });
-  });
-  zone.addEventListener('dragover', (e) => {
-    if(draggedPostId === null) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  });
-  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-  zone.addEventListener('drop', (e) => {
-    if(draggedPostId === null) return;
-    e.preventDefault();
-    const moved = moveDraggedPost(isTop ? 0 : posts.length - 1);
-    setDragZones(false);
-    if(moved) showToast(isTop ? 'Placée en première position' : 'Placée en dernière position');
-  });
-});
-grid.addEventListener('dragover', (e) => {
-  if(draggedPostId === null) return;
-  e.preventDefault();
+  // le click qui suit le relâchement ne doit pas ouvrir la photo
+  suppressClick = true;
+  setTimeout(() => { suppressClick = false; }, 0);
+  const target = !commit ? null : zone ? zone.dataset.edge : tile ? tile.dataset.postId : null;
+  if(!target || !moveDraggedPosts(d.ids, d.tile.dataset.postId, target)) return;
+  const n = d.ids.length;
+  const what = n > 1 ? `${n} publications placées` : 'Placée';
+  if(target === 'top') showToast(`${what} en première position`);
+  else if(target === 'bottom') showToast(`${what} en dernière position`);
+  else if(n > 1) showToast(`${n} publications déplacées`);
+}
+grid.addEventListener('dragstart', (e) => { if(e.target.closest('.tile')) e.preventDefault(); });
+grid.addEventListener('pointerdown', (e) => {
+  if(e.button !== 0 || e.pointerType === 'touch') return;
   const tile = e.target.closest('.tile');
-  if(tile === dropTile) return;
-  clearDropTile();
-  if(tile && tile.dataset.postId !== draggedPostId){ dropTile = tile; tile.classList.add('drop-target'); }
-});
-grid.addEventListener('drop', (e) => {
-  if(draggedPostId === null) return;
-  e.preventDefault();
-  const tile = e.target.closest('.tile');
-  clearDropTile();
   if(!tile) return;
-  moveDraggedPost(posts.findIndex(p => p.id === tile.dataset.postId));
+  endPointerDrag(false);
+  e.preventDefault(); // pas de sélection de texte pendant le déplacement
+  pointerDrag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, tile, ids: [], ghost: null, zone: null };
 });
+window.addEventListener('pointermove', (e) => {
+  const d = pointerDrag;
+  if(!d || e.pointerId !== d.pointerId) return;
+  if(!(e.buttons & 1)){ endPointerDrag(false); return; } // bouton relâché hors de la fenêtre
+  d.x = e.clientX; d.y = e.clientY;
+  if(!d.ghost){
+    if(Math.hypot(d.x - d.startX, d.y - d.startY) < DRAG_THRESHOLD) return;
+    startPointerDrag();
+    if(!pointerDrag) return;
+  }
+  updatePointerDrag();
+});
+// la molette fait défiler la page sous la photo tenue : on recalcule la case visée
+window.addEventListener('scroll', () => { if(pointerDrag && pointerDrag.ghost) updatePointerDrag(); }, { passive: true });
+window.addEventListener('pointerup', (e) => { if(pointerDrag && e.pointerId === pointerDrag.pointerId) endPointerDrag(true); });
+window.addEventListener('pointercancel', (e) => { if(pointerDrag && e.pointerId === pointerDrag.pointerId) endPointerDrag(false); });
+window.addEventListener('blur', () => endPointerDrag(false));
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && pointerDrag) endPointerDrag(false); });
+document.addEventListener('selectstart', (e) => { if(pointerDrag) e.preventDefault(); });
+grid.addEventListener('click', (e) => { if(suppressClick){ e.preventDefault(); e.stopPropagation(); } }, true);
 
 /* ---------- Vue plein écran ---------- */
 const lightbox = document.getElementById('lightbox');
