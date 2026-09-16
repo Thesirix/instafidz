@@ -23,8 +23,9 @@ InstaFidz is **just an organizer**. It does not connect to Instagram, it does no
 
 You drop in your edited photos (or a whole folder of them), then:
 
-- drag them around the 3-column grid until the feed looks right,
+- drag them around the 3-column grid (3:4 tiles, like the Instagram profile grid) until the feed looks right,
 - group several photos into **carousels** and choose the order inside each one,
+- switch between **your profile today** and **your profile once everything is published**, to see where your already published photos will end up,
 - preview any post full screen, at full resolution,
 - close the page and come back later: **your work is saved automatically** in your browser.
 
@@ -53,19 +54,22 @@ cd instafidz
 
 Then double-click **`Lancer-organisateur.bat`**. It opens InstaFidz in a dedicated Chrome (or Edge) window where folder drag & drop is enabled, even if Chrome is already open.
 
-### Your first feed in 5 steps
+### Your first feed in 6 steps
 
 | Step | Action                                                                                    | UI element                               |
 | ---- | ----------------------------------------------------------------------------------------- | ---------------------------------------- |
-| 1    | Import photos: drop files/folders, or use the buttons                                     | **Ajouter des photos** / **Parcourir**   |
-| 2    | Reorder: drag a tile onto another tile                                                    | the grid                                 |
+| 1    | Import photos: drop files/folders (onto a tile to insert them at that position), or use the buttons | **Ajouter des photos** / **Parcourir**   |
+| 2    | Reorder: drag a tile onto another tile, the held photo shows where it will land           | the grid                                 |
 | 3    | Move far: while holding a photo, scroll with the mouse wheel, or hover the blue bar at the top or bottom of the screen to jump | mouse wheel / drag zones                 |
 | 4    | Build carousels: select photos **in the order you want them to appear**, then group       | **Sélectionner** → **Créer un carousel** |
 | 5    | Check a post full screen, reorder its carousel slides, ungroup or delete it               | click a tile                             |
+| 6    | Compare your profile today with your profile once everything is published                 | **Aujourd'hui sur Instagram** / **À la fin (tout publié)** |
 
 ### Publishing order
 
 Position **1** is the top-left tile, which on Instagram is your **most recent** post. To reproduce your plan on your real profile, **publish from the highest number down to 1**.
+
+Instagram simply stacks posts: every new post takes the top-left tile and **pushes every other post one tile further**, including the ones already online. The top row is always full and there is never a gap. So your already published photos keep their columns only if you publish a **multiple of 3** posts; otherwise they all move 1 or 2 tiles. See [Today and final views](#today-and-final-views).
 
 ---
 
@@ -74,7 +78,7 @@ Position **1** is the top-left tile, which on Instagram is your **most recent** 
 The whole application is a single static file. There is no backend, no framework, and no build step:
 
 ```
-index.html                ←  HTML + CSS + vanilla JS, the entire app (~42 KB)
+index.html                ←  HTML + CSS + vanilla JS, the entire app (~78 KB)
 Lancer-organisateur.bat   ←  optional Windows launcher (dedicated Chromium window)
 ```
 
@@ -82,13 +86,16 @@ The only external resource is the [Tabler Icons](https://tabler.io/icons) webfon
 
 ### 1. Data Model
 
-The feed is an ordered array of posts. A post with more than one photo is a carousel:
+The feed is an ordered array of posts. A post with more than one photo is a carousel. A post with no photo is an empty slot (_Case vide_), standing for a post that is on Instagram but not in the organizer (a reel, a video…):
 
 ```js
 posts = [
   { id: "post-lx2k9f-a8b3c1", photoIds: ["p12"] }, // single photo
   { id: "post-lx2kaa-9d0e2f", photoIds: ["p3", "p7", "p8", "p4"] }, // carousel, slide order
+  { id: "post-lx2kb1-4f7a0c", photoIds: [], placeholder: true }, // empty slot, counts as a post
 ];
+
+newestOnlineId = "post-lx2k9f-a8b3c1"; // top-left post of the real profile today: every post above it is new
 
 photoStore = {
   p12: {
@@ -113,9 +120,10 @@ Everything is stored in the browser, in a database named `feedOrganizerDB` (vers
 | ------------ | ----- | ----------------------------------------------------------- | ----------------------------------- |
 | `photos`     | `id`  | `{ id, blob, name, sig }`, the **original file**, untouched | full-resolution preview             |
 | `thumbs`     | `id`  | `{ id, blob, name, sig }`, a JPEG thumbnail                 | fast grid rendering                 |
-| `meta`       | `key` | `{ key: 'posts', value: [{ id, photoIds }] }`               | feed order and carousel composition |
+| `meta`       | `key` | `{ key: 'posts', value: [{ id, photoIds, placeholder? }] }` | feed order, carousels, empty slots  |
+| `meta`       | `key` | `{ key: 'newestOnline', value: postId }`                    | top-left post of the profile today  |
 
-At startup, the app reads **only the keys** of `photos`, plus every thumbnail and the `meta` record. Originals are never loaded into memory until you open one full screen. Posts that reference a missing photo are dropped, and duplicated post IDs are regenerated.
+At startup, the app reads **only the keys** of `photos`, plus every thumbnail and the `meta` records. Originals are never loaded into memory until you open one full screen. A missing photo only removes itself from its post (a post left with no photo is dropped, empty slots are kept), and duplicated post IDs are regenerated.
 
 It also calls `navigator.storage.persist()` so the browser does not evict your library when disk space runs low.
 
@@ -244,10 +252,17 @@ function fileSignature(f) {
 - A photo whose signature is already **in the feed** (or earlier in the same import) is not added automatically. Re-importing a folder after adding new pictures to it only adds the new ones.
 - Instead of silently ignoring it, a panel lists each duplicate with the existing photo's thumbnail and position (_publication 23 (photo 2 du carousel)_):
   - **Retrouver** scrolls to the existing photo, then outlines it in orange with a glow and a bump animation. If the photo is in the feed several times, each click jumps to the next copy (_exemplaire 1/2_).
-  - **Ajouter en double** adds that photo anyway, and **Tout ajouter en double** does it for the whole list. A double is a real second copy, saved like any other photo.
+  - **Ajouter en double** adds that photo anyway, and **Tout ajouter en double** does it for the whole list. A double is a real second copy, saved like any other photo, inserted where the original import was dropped.
 - A photo that is still saved but no longer appears in the feed is **put back in the feed** when you import it again, reusing the stored file instead of saving it twice.
 - At startup, a missing photo only removes itself from its carousel. The rest of the carousel is kept.
-- New photos are inserted **at the top** of the feed, like new Instagram posts.
+
+### Where new photos go
+
+- By default (buttons, or a drop outside the tiles), new photos are inserted **at the top** of the feed, like new Instagram posts.
+- **Dropping files onto a tile** inserts them **at that tile's position**: that tile and every following post move one place further, as publishing would on Instagram. While the files are held over the grid, the target tile shows _Insérer en position N_ and the toast confirms the position.
+- During a file drag the mouse wheel is blocked on Windows, so **the feed scrolls by itself** when the pointer gets close to the top or bottom edge of the window (the closer, the faster).
+- Drops only insert at a position in the **À la fin** view. In the **Aujourd'hui** view, new photos go to the top.
+- Images dragged from inside the page (the full-screen photo, the carousel strip) are ignored by the importer, so they never trigger _Aucune image trouvée_.
 
 ### The `file://` limitation
 
@@ -276,7 +291,8 @@ Dropping a tile on another tile moves it to that position.
 Tiles are moved with **pointer events** (`pointerdown` / `pointermove` / `pointerup`), not native HTML5 drag & drop: on Windows, a native drag runs inside a system loop that **blocks the mouse wheel** until the photo is released, so a long feed could not be scrolled while holding a photo. With pointer events:
 
 - a press becomes a drag only after the pointer moves 6 px, so a simple click still opens or selects the photo,
-- the tile shrinks into a small tilted copy that follows the cursor (a 280 ms Web Animations API transition, skipped when `prefers-reduced-motion` is set), and the tile under it is found with `document.elementFromPoint()`,
+- the tile shrinks into a small tilted 3:4 copy that follows the cursor (a 280 ms Web Animations API transition, skipped when `prefers-reduced-motion` is set), and the tile under it is found with `document.elementFromPoint()`,
+- under the held photo, a label shows **where it will land** (_→ position 42_, or _→ positions 2 à 3_ for a selection) before you let go,
 - in selection mode, grabbing a **selected** photo moves the **whole selection** as one block, in selection order (1, 2, 3…). The ghost becomes a stack with a counter, and the selection is kept after the drop so you can still group it. Grabbing an unselected photo moves only that photo,
 - **the mouse wheel scrolls the page while you hold the photo**; the target tile is recomputed on every `scroll` event,
 - `Esc` cancels the move.
@@ -297,17 +313,46 @@ Two floating buttons (bottom right) also scroll to the top or bottom of the page
 - **Sélectionner** enters selection mode. Each click adds a numbered badge (**1, 2, 3…**): this is the slide order of the future carousel.
 - **Tout sélectionner** selects the whole feed (it becomes **Tout désélectionner**), and **Ctrl+A** / **⌘+A** does the same from anywhere.
 - **Créer un carousel** merges the selected posts, in click order, into one post placed at the position of the **first** selected post. Selecting an existing carousel inlines its slides.
-- **Supprimer** deletes the selected posts (with confirmation) and their stored files.
+- **Supprimer** deletes the selected posts (with confirmation) and their stored files. The following posts move up to fill the gap, like on Instagram.
+
+### Today and final views
+
+Two buttons above the grid switch between two previews of the same feed:
+
+| View                          | What the grid shows                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| **Aujourd'hui sur Instagram** | only the posts already online, from the top-left post of your real profile today     |
+| **À la fin (tout publié)**    | every post, stacked as Instagram will show them once everything is published         |
+
+Switching from one to the other shows **where each published photo will move**. In the final view, already published photos carry a small orange Instagram badge so you can follow them.
+
+1. Open **Aujourd'hui sur Instagram** and click the photo that is **top-left on your profile today** (or open it full screen → **En haut à gauche aujourd'hui**). Every post above it counts as new.
+2. The grid must now look **exactly like your phone**. If the last photo is not in the right column, a published post is missing from the organizer (usually a reel or a video): **drag that last photo onto the right tile**. Two tiles appear after it while you hold it, and dropping it on one inserts one or two empty slots just before it. Move each slot to where the missing post really is.
+3. Open **À la fin**: this is your profile once everything is published, top row full.
+
+A short line above the grid sums it up: with **N** new posts, every published photo moves `N mod 3` tiles, and it tells you how many posts to add or remove to keep them in place (`3 − N mod 3` to add, `N mod 3` to remove).
+
+In the Aujourd'hui view, the top-left photo cannot be dragged and cannot be used as a drop target, and the top/bottom jump zones are hidden, so a published photo can never be moved above the new ones by accident.
+
+### Empty slots (_Case vide_)
+
+An empty slot stands for a post that is on your Instagram profile but not in the organizer (a reel, a video…). It **counts as a post**: it takes a tile and pushes the following posts like any other.
+
+- **Case vide** (top bar) adds one at the top of the feed, or right after the top-left photo in the Aujourd'hui view.
+- Drag it like a photo to where the missing post really is.
+- Delete it with the red **✕** in its corner (no confirmation, it holds no photo), or with **Sélectionner** → **Supprimer**.
 
 ### Full-screen view
 
-| Action                  | How                                                        |
-| ----------------------- | ---------------------------------------------------------- |
-| Next / previous slide   | arrows on screen, or `←` `→`                               |
-| Reorder carousel slides | drag the thumbnails in the bottom strip                    |
-| Ungroup a carousel      | **Dissocier**: every slide becomes a single post, in place |
-| Delete the post         | **Supprimer**                                              |
-| Close                   | ✕ or `Esc`                                                 |
+| Action                           | How                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
+| Next / previous slide            | arrows on screen, or `←` `→`                                                         |
+| Reorder carousel slides          | drag the thumbnails in the bottom strip                                              |
+| Ungroup a carousel               | **Dissocier**: every slide becomes a single post, in place                           |
+| Delete one photo of a carousel   | **Supprimer cette photo**: the post keeps its place, the rest of the feed does not move |
+| Delete the post                  | **Supprimer** / **Supprimer le carousel**: the following posts move up one place     |
+| Mark the top-left post of today  | **En haut à gauche aujourd'hui** (click again to remove)                             |
+| Close                            | ✕ or `Esc`                                                                           |
 
 ### Keyboard shortcuts
 
@@ -316,6 +361,8 @@ Two floating buttons (bottom right) also scroll to the top or bottom of the page
 | `Ctrl+A` / `⌘+A` | grid             | enter selection mode and select all |
 | `←` / `→`        | full-screen view | previous / next slide               |
 | `Esc`            | full-screen view | close                               |
+| `Esc`            | holding a photo  | cancel the move                     |
+| `Esc`            | duplicates panel | close the panel                     |
 
 ---
 
@@ -323,11 +370,13 @@ Two floating buttons (bottom right) also scroll to the top or bottom of the page
 
 | Element             | Style                                                                        |
 | ------------------- | ---------------------------------------------------------------------------- |
-| Grid                | 3 columns, 3 px gap, square tiles (`aspect-ratio: 1/1`, `object-fit: cover`) |
-| Feed position badge | top-left, dark translucent pill                                              |
+| Grid                | 3 columns, 3 px gap, portrait tiles like the Instagram profile grid (`aspect-ratio: 3/4`, `object-fit: cover`) |
+| Feed position badge | top-left, dark translucent pill (in the Aujourd'hui view: position on the profile today) |
 | Carousel            | 4 px green border (`#16A34A`) + large badge with the slide count             |
 | Selected            | 4 px blue border (`#0095F6`), blue tint, numbered check in click order       |
-| Drop target         | 4 px dashed blue border                                                      |
+| Drop target         | 4 px dashed blue border, plus _Insérer en position N_ for files              |
+| Already online      | small orange Instagram badge (final view); orange outline on the top-left post of today |
+| Empty slot          | dashed grey tile _Case vide · réel, vidéo…_ with a red ✕                     |
 | Palette             | Instagram-like light theme, automatic dark theme via `prefers-color-scheme`  |
 | Layout              | max width 975 px (Instagram profile width), responsive below 600 px          |
 
@@ -399,13 +448,13 @@ No build step: `index.html` is served as is.
 
 All settings are plain constants or CSS variables inside `index.html`.
 
-### Match Instagram's current grid ratio
+### Grid ratio
 
-Instagram now crops profile grid thumbnails to a **3:4** portrait ratio. To preview that instead of squares:
+Tiles use Instagram's current **3:4** profile grid ratio. To preview the older square grid instead:
 
 ```css
 .tile {
-  aspect-ratio: 3/4; /* default: 1/1 */
+  aspect-ratio: 1/1; /* default: 3/4 */
 }
 ```
 
@@ -425,6 +474,7 @@ Existing thumbnails are kept. Clear the site data to regenerate them with new se
   --ig-accent: #0095f6; /* selection, buttons, drop zones */
   --ig-danger: #ed4956; /* delete actions */
   --carousel: #16a34a; /* carousel border and badge */
+  --locate: #ff9f0a; /* found duplicate, already-online markers */
 }
 ```
 
@@ -438,13 +488,7 @@ The browser must also be able to **decode** the format. HEIC and camera RAW file
 
 ### Duplicate detection
 
-To allow the same photo more than once, make the signature unique per file:
-
-```js
-function fileSignature(f) {
-  return `${f.name}|${f.size}|${f.lastModified}|${Math.random()}`;
-}
-```
+To add the same photo more than once, no code change is needed: use **Ajouter en double** in the duplicates panel. The signature (`name|size|lastModified`) is also what lets a re-imported photo reuse its stored file, so keep it deterministic.
 
 ---
 
@@ -462,6 +506,7 @@ function fileSignature(f) {
 - HEIC and RAW files are not previewed.
 - Duplicate detection relies on name + size + date: an identical photo renamed or re-exported is treated as a different photo.
 - The library lives in one browser on one computer. There is no export or sync between devices.
+- The Aujourd'hui view is only right if the organizer contains **every post already online** from the top-left one down, in order. Reels and videos are not imported: add an empty slot for each of them.
 - The interface is in French only.
 
 ---
