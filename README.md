@@ -4,7 +4,7 @@
 
 # 📸 InstaFidz
 
-**A simple, private feed planner: arrange your photos exactly as they will appear on your Instagram profile, before you post them.**  
+**A simple, private feed planner: arrange your photos exactly as they will appear on your Instagram profile, before you post them.**
 One HTML file. Vanilla JavaScript. No install, no account, no upload.
 
 [![HTML5](https://img.shields.io/badge/HTML5-single%20file-E34F26?style=flat-square&logo=html5&logoColor=white)](index.html)
